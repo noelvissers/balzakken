@@ -455,7 +455,7 @@ function ScoreChart({ game }: { game: GameState }) {
             {line.eliminated ? (
               <text x={line.endX} y={line.endY} textAnchor="middle" dominantBaseline="central" className="chart-skull" role="img" aria-label={`${line.player.name} eliminated`}>💀</text>
             ) : line.player.id === game.winnerId ? (
-              <text x={line.endX} y={line.endY} textAnchor="middle" dominantBaseline="central" className="chart-trophy" role="img" aria-label={`${line.player.name} winner`}>🏆</text>
+              <text x={line.endX} y={line.endY} textAnchor="middle" dominantBaseline="central" className="chart-trophy" role="img" aria-label={`${line.player.name} winner`}>👑</text>
             ) : (
               <circle cx={line.endX} cy={line.endY} r="4" fill={line.color} />
             )}
