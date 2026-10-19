@@ -116,6 +116,68 @@ describe('scorekeeper flows', () => {
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds).toHaveLength(1)
   })
 
+  it('enters signed values with the keypad and advances focus through the hand fields', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await createTwoPlayerGame(user)
+    await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
+
+    const ada = screen.getByLabelText('Ada hand value')
+    expect(ada).toHaveAttribute('inputmode', 'none')
+    await user.click(screen.getByRole('button', { name: 'Enter digit 4' }))
+    await user.click(screen.getByRole('button', { name: 'Toggle negative sign' }))
+    await user.click(screen.getByRole('button', { name: 'Toggle negative sign' }))
+    await user.click(screen.getByRole('button', { name: 'Toggle negative sign' }))
+    await user.click(screen.getByRole('button', { name: 'Enter digit 1' }))
+    await user.click(screen.getByRole('button', { name: 'Delete last digit' }))
+    expect(ada).toHaveValue('-4')
+
+    await user.click(screen.getByRole('button', { name: 'Next hand value' }))
+    const bert = screen.getByLabelText('Bert hand value')
+    expect(document.activeElement).toBe(bert)
+    await user.click(screen.getByRole('button', { name: 'Enter digit 2' }))
+    await user.click(screen.getByRole('button', { name: 'Enter and submit round' }))
+
+    expect(screen.getByText('ROUND 2')).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds[0].hands).toEqual({
+      [JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.players[0].id]: -4,
+      [JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.players[1].id]: 2,
+    })
+  })
+
+  it('skips eliminated players and validates when Enter submits from the final field', async () => {
+    const initial = createGame([
+      { id: 'ada', name: 'Ada' }, { id: 'bert', name: 'Bert' }, { id: 'cody', name: 'Cody' },
+    ], () => 0)
+    const first = submitRound({
+      ...initial,
+      players: initial.players.map((player) => ({ ...player, score: player.id === 'bert' ? 75 : 0 })),
+    }, { callerId: 'bert', hands: { ada: 1, bert: 6, cody: 2 } }, () => 0)
+    saveGame(submitRound(first, { callerId: 'ada', hands: { ada: 1, cody: 2 } }, () => 0))
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Resume Game' }))
+    await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
+
+    expect(screen.queryByLabelText('Bert hand value')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Next hand value' }))
+    const cody = screen.getByLabelText('Cody hand value')
+    expect(document.activeElement).toBe(cody)
+    await user.click(screen.getByRole('button', { name: 'Enter digit 3' }))
+    await user.click(screen.getByRole('button', { name: 'Enter and submit round' }))
+    expect(screen.getByRole('alert')).toHaveTextContent('safe whole number for Ada')
+    expect(screen.getByText('ROUND 3')).toBeInTheDocument()
+
+    await user.click(screen.getByLabelText('Ada hand value'))
+    await user.click(screen.getByRole('button', { name: 'Enter digit 1' }))
+    await user.click(screen.getByRole('button', { name: 'Toggle negative sign' }))
+    await user.click(screen.getByRole('button', { name: 'Next hand value' }))
+    await user.click(screen.getByRole('button', { name: 'Enter and submit round' }))
+
+    expect(screen.getByText('ROUND 4')).toBeInTheDocument()
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds.at(-1).hands).toEqual({ ada: -1, cody: 3 })
+  })
+
   it('rejects missing hand values without changing the last committed save', async () => {
     const user = userEvent.setup()
     render(<App />)
@@ -150,8 +212,8 @@ describe('scorekeeper flows', () => {
     expect(window.confirm).not.toHaveBeenCalled()
     expect(screen.getByText('ROUND 1')).toBeInTheDocument()
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game).toEqual(initialGame)
-    expect(screen.getByLabelText('Ada hand value')).toHaveValue(1)
-    expect(screen.getByLabelText('Bert hand value')).toHaveValue(2)
+    expect(screen.getByLabelText('Ada hand value')).toHaveValue('1')
+    expect(screen.getByLabelText('Bert hand value')).toHaveValue('2')
     expect(within(screen.getByRole('columnheader', { name: /Ada/ })).getByText('WIN')).toBeInTheDocument()
     expect(within(screen.getByRole('table', { name: 'Scoreboard' })).getByRole('columnheader', { name: /Bert/ })).toHaveTextContent('Total score: 0')
     await user.clear(screen.getByLabelText('Bert hand value'))
@@ -244,8 +306,8 @@ describe('scorekeeper flows', () => {
     expect(screen.queryByText('Winner')).not.toBeInTheDocument()
     expect(screen.getByText('ROUND 1')).toBeInTheDocument()
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds).toHaveLength(0)
-    expect(screen.getByLabelText('Ada hand value')).toHaveValue(1)
-    expect(screen.getByLabelText('Bert hand value')).toHaveValue(6)
+    expect(screen.getByLabelText('Ada hand value')).toHaveValue('1')
+    expect(screen.getByLabelText('Bert hand value')).toHaveValue('6')
     expect(within(screen.getByRole('columnheader', { name: /Bert/ })).getByText('WIN')).toBeInTheDocument()
     await user.clear(screen.getByLabelText('Bert hand value'))
     await user.type(screen.getByLabelText('Bert hand value'), '0')
@@ -282,8 +344,8 @@ describe('scorekeeper flows', () => {
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Undo|Change win caller|Back to hand values/ })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Bert calls WIN' }))
-    expect(screen.getByLabelText('Ada hand value')).toHaveValue(1)
-    expect(screen.getByLabelText('Bert hand value')).toHaveValue(4)
+    expect(screen.getByLabelText('Ada hand value')).toHaveValue('1')
+    expect(screen.getByLabelText('Bert hand value')).toHaveValue('4')
     expect(within(screen.getByRole('columnheader', { name: /Bert/ })).getByText('WIN')).toBeInTheDocument()
     expect(localStorage.getItem(STORAGE_KEY)).toBe(committed)
     await user.click(screen.getByRole('button', { name: 'Next round' }))
@@ -353,7 +415,7 @@ describe('scorekeeper flows', () => {
     expect(history[1]).toHaveTextContent('Running total: 100')
     expect(screen.queryByRole('button', { name: 'Bert calls WIN' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
-    expect(screen.getAllByRole('spinbutton')).toHaveLength(2)
+    expect(screen.getAllByRole('textbox', { name: /hand value/ })).toHaveLength(2)
     expect(screen.queryByLabelText('Bert hand value')).not.toBeInTheDocument()
     expect(within(table.getByRole('row', { name: 'Round 3 entry' })).getAllByRole('cell')).toHaveLength(3)
   })
