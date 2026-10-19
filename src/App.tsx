@@ -298,7 +298,7 @@ function roundAdjustment(round: GameState['rounds'][number], playerId: string): 
   return undefined
 }
 
-function FittedPlayerName({ name }: { name: string }) {
+function FittedText({ children, className }: { children: ReactNode; className: string }) {
   const containerRef = useRef<HTMLSpanElement>(null)
   const textRef = useRef<HTMLSpanElement>(null)
 
@@ -327,22 +327,22 @@ function FittedPlayerName({ name }: { name: string }) {
       window.removeEventListener('resize', fit)
       document.fonts?.removeEventListener('loadingdone', fit)
     }
-  }, [name])
+  }, [children])
 
-  return <span className="player-name" ref={containerRef}><span className="player-name-text" ref={textRef}>{name}</span></span>
+  return <span className={className} ref={containerRef}><span className={`${className}-text`} ref={textRef}>{children}</span></span>
 }
 
 function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: string; entry?: ReactNode }) {
   const { players, dealerId, rounds } = game
   const playerTiles = (visible: boolean) => players.map((player) => (
     <th scope="col" key={player.id} className={player.score >= 100 ? 'is-eliminated' : undefined}>
-      {visible ? <FittedPlayerName name={player.name} /> : <span className="player-name">{player.name}</span>}
+      {visible ? <FittedText className="player-name">{player.name}</FittedText> : <span className="player-name">{player.name}</span>}
       <span className="player-tags">
         {player.id === dealerId && <span className="dealer-tag">Dealer</span>}
         {player.id === callerId && <span className="win-tag">WIN</span>}
         {game.status === 'finished' && player.id === game.winnerId && <span className="status-winner">Winner</span>}
       </span>
-      <span className="player-total">{player.score >= 100 ? <span role="img" aria-label="Eliminated">💀</span> : <><span className="sr-only">Total score: </span>{player.score}</>}</span>
+      {visible ? <FittedText className="player-total">{player.score >= 100 ? <span role="img" aria-label="Eliminated">💀</span> : player.score}</FittedText> : <span className="player-total">{player.score >= 100 ? <span role="img" aria-label="Eliminated">💀</span> : <><span className="sr-only">Total score: </span>{player.score}</>}</span>}
     </th>
   ))
   return (
@@ -363,7 +363,7 @@ function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: str
                   if (round.eliminatedIds.includes(player.id)) {
                     return (
                       <td key={player.id}>
-                        <span className="round-total"><span className="sr-only">Running total: </span>{round.scoresAfter[player.id] > 100 ? '100+' : '100'}</span>
+                        <FittedText className="round-total"><span className="sr-only">Running total: </span>{round.scoresAfter[player.id] > 100 ? '100+' : '100'}</FittedText>
                         <span className="round-hand"><span role="img" aria-label="Eliminated">💀</span></span>
                       </td>
                     )
@@ -373,13 +373,13 @@ function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: str
                   const handEmoji = adjustment === 'penalty' ? '🤡' : adjustment === 'reduction' ? '🍀' : player.id === round.callerId ? '🃏' : '🎴'
                   return (
                     <td key={player.id} className={adjustment ? `score-${adjustment}` : undefined}>
-                      <span className="round-total">
+                      <FittedText className="round-total">
                         <span className="sr-only">Running total: </span>{round.scoresAfter[player.id]}
                         {adjustment && <sup aria-label={adjustment === 'penalty' ? 'Penalty: +25' : 'Reduction: -25'}>{adjustment === 'penalty' ? ' +25' : ' -25'}</sup>}
-                      </span>
-                      <span className="round-hand">
+                      </FittedText>
+                      <FittedText className="round-hand">
                         <span role="img" aria-label="Hand value">{handEmoji}</span>{`${round.hands[player.id] > 0 ? '+' : ''}${round.hands[player.id]}`}
-                      </span>
+                      </FittedText>
                     </td>
                   )
                 })}

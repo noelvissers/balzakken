@@ -45,7 +45,7 @@ describe('scorekeeper flows', () => {
     const text = container.querySelector<HTMLElement>('.scoreboard-heading .player-name-text')!
     expect(text.textContent).toBe(name)
     expect(Number.parseFloat(text.style.fontSize)).toBeCloseTo(3.97)
-    expect(resizeCallbacks).toHaveLength(2)
+    expect(resizeCallbacks).toHaveLength(4)
     expect(container.querySelector('.sr-only .player-name-text')).toBeNull()
 
     availableWidth = 160
@@ -58,7 +58,39 @@ describe('scorekeeper flows', () => {
     act(() => resizeCallbacks.forEach((callback) => callback()))
     expect(text.style.fontSize).toBe('')
     unmount()
-    expect(disconnect).toHaveBeenCalledTimes(2)
+    expect(disconnect).toHaveBeenCalledTimes(4)
+  })
+
+  it('shrinks score lines including adjustments and hands, then restores them when space returns', async () => {
+    let availableWidth = 40
+    const resizeCallbacks: (() => void)[] = []
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { resizeCallbacks.push(callback) }
+      observe = vi.fn()
+      disconnect = vi.fn()
+    })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const isText = /^(player-total|round-total|round-hand)-text$/.test(this.className)
+      const width = isText ? 120 * (Number.parseFloat(this.style.fontSize) || 16) / 16 : availableWidth
+      return new DOMRect(0, 0, width, 24)
+    })
+    const game = createGame([{ id: 'ada', name: 'Ada' }, { id: 'bert', name: 'Bert' }], () => 0)
+    saveGame(submitRound(game, { callerId: 'ada', hands: { ada: 6, bert: -123456789 } }, () => 0))
+    const user = userEvent.setup()
+    const { container } = render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Resume Game' }))
+    const scores = container.querySelectorAll<HTMLElement>('.player-total-text, .round-total-text, .round-hand-text')
+    expect(scores).toHaveLength(6)
+    for (const text of scores) expect(Number.parseFloat(text.style.fontSize)).toBeCloseTo(5.26)
+    expect(container.querySelector('.round-total-text sup')).toHaveTextContent('+25')
+    expect(container.querySelectorAll('.round-hand-text')[1]).toHaveTextContent('-123456789')
+
+    availableWidth = 80
+    act(() => resizeCallbacks.forEach((callback) => callback()))
+    for (const text of scores) expect(Number.parseFloat(text.style.fontSize)).toBeCloseTo(10.6)
+    availableWidth = 200
+    act(() => window.dispatchEvent(new Event('resize')))
+    for (const text of scores) expect(text.style.fontSize).toBe('')
   })
 
   it('keeps the sticky player strip and exposes one accessible scoreboard without minimum table widths', async () => {
