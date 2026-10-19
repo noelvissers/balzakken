@@ -361,7 +361,12 @@ function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: str
                 {players.map((player) => {
                   const hasHand = Object.hasOwn(round.hands, player.id)
                   if (round.eliminatedIds.includes(player.id)) {
-                    return <td key={player.id}><span className="round-total" role="img" aria-label="Eliminated">💀</span></td>
+                    return (
+                      <td key={player.id}>
+                        <span className="round-total"><span className="sr-only">Running total: </span>{round.scoresAfter[player.id] > 100 ? '100+' : '100'}</span>
+                        <span className="round-hand"><span role="img" aria-label="Eliminated">💀</span></span>
+                      </td>
+                    )
                   }
                   if (!hasHand) return <td key={player.id} />
                   const adjustment = roundAdjustment(round, player.id)

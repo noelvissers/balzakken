@@ -523,7 +523,10 @@ describe('scorekeeper flows', () => {
     const before = within(screen.getByRole('row', { name: 'Round 1' })).getAllByRole('cell')[1]
     expect(before).toHaveTextContent('Running total: 76🎴+76')
     const eliminated = within(screen.getByRole('row', { name: 'Round 2' })).getAllByRole('cell')[1]
-    expect(eliminated.textContent).toBe('💀')
+    expect(eliminated.querySelector('.round-total')).toHaveTextContent('Running total: 100+')
+    expect(eliminated).not.toHaveTextContent('101')
+    expect(eliminated.lastElementChild).toHaveClass('round-hand')
+    expect(within(eliminated.lastElementChild as HTMLElement).getByRole('img', { name: 'Eliminated' })).toHaveTextContent('💀')
     expect(screen.getByRole('columnheader', { name: /Bert/ })).not.toHaveTextContent(/101|Total score|Game over/)
 
     await user.click(screen.getByRole('button', { name: 'Undo Last Round' }))
@@ -552,7 +555,9 @@ describe('scorekeeper flows', () => {
     expect(within(bertHeader).getByRole('img', { name: 'Eliminated' })).toHaveTextContent('💀')
     expect(bertHeader).not.toHaveTextContent(/Total score|100|Game over/)
     const elimination = within(table.getByRole('row', { name: 'Round 1' })).getAllByRole('cell')[1]
-    expect(elimination.textContent).toBe('💀')
+    expect(elimination.querySelector('.round-total')?.textContent).toBe('Running total: 100')
+    expect(elimination.lastElementChild).toHaveClass('round-hand')
+    expect(elimination.querySelector('.round-hand')?.textContent).toBe('💀')
     expect(within(elimination).getByRole('img', { name: 'Eliminated' })).toBeInTheDocument()
     const history = within(table.getByRole('row', { name: 'Round 2' })).getAllByRole('cell')
     expect(history).toHaveLength(3)
