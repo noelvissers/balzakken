@@ -38,17 +38,8 @@ function App() {
   const [storageWarning, setStorageWarning] = useState(initialLoad.warning)
   const [callerId, setCallerId] = useState('')
   const [handValues, setHandValues] = useState<Record<string, string>>({})
-  const [activeHandId, setActiveHandId] = useState('')
   const [formError, setFormError] = useState('')
   const submissionLock = useRef(false)
-
-  function updateActiveHand(update: (value: string) => string) {
-    if (!activeHandId) return
-    setHandValues((values) => ({
-      ...values,
-      [activeHandId]: update(values[activeHandId] ?? ''),
-    }))
-  }
 
   function commit(nextGame: GameState) {
     setGame(nextGame)
@@ -66,7 +57,6 @@ function App() {
       const nextGame = createGame(names)
       setFormError('')
       setCallerId('')
-      setActiveHandId('')
       setHandValues({})
       commit(nextGame)
       setScreen('game')
@@ -99,7 +89,6 @@ function App() {
       commit(submitRound(game, input))
       setHandValues({})
       setCallerId('')
-      setActiveHandId('')
       setFormError('')
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'The round could not be calculated.')
@@ -115,7 +104,6 @@ function App() {
     commit(previousGame)
     setHandValues(Object.fromEntries(Object.entries(round.hands).map(([id, value]) => [id, String(value)])))
     setCallerId(round.callerId)
-    setActiveHandId(previousGame.players.find((player) => player.score < 100)?.id ?? '')
     setFormError('')
   }
 
@@ -142,7 +130,6 @@ function App() {
     const rematch = createGame(game.players.map(({ name }) => ({ id: makeId(), name })))
     commit(rematch)
     setCallerId('')
-    setActiveHandId('')
     setHandValues({})
   }
 
@@ -237,7 +224,7 @@ function App() {
   const canUndo = Boolean(callerId || game.rounds.length)
 
   return (
-    <main className={`app-shell game-shell${callerId ? ' has-mobile-keypad' : ''}`}>
+    <main className="app-shell game-shell">
       <Header title={game.status === 'active' ? `ROUND ${currentRound}` : undefined} onQuit={quitGame} />
       {storageWarning && <p role="alert" className="notice">{storageWarning}</p>}
       {game.status === 'finished' ? (
@@ -257,22 +244,19 @@ function App() {
                 {players.map((player) => (
                   <td key={player.id}>
                     {player.score >= 100 ? null : callerId ? (
-                      <div className={`hand-input${activeHandId === player.id ? ' is-active' : ''}`}>
+                      <div className="hand-input">
                         <label className="sr-only" htmlFor={`hand-${player.id}`}>Hand for {player.name}</label>
                         <input
                           id={`hand-${player.id}`}
                           aria-label={`${player.name} hand value`}
                           type="text"
-                          inputMode="none"
                           value={handValues[player.id] ?? ''}
-                          onFocus={() => setActiveHandId(player.id)}
                           onChange={(event) => setHandValues((values) => ({ ...values, [player.id]: event.target.value }))}
                         />
                       </div>
                     ) : (
                       <button className="button button-primary win-button" type="button" aria-label={`${player.name} calls WIN`} title={`${player.name} calls WIN`} onClick={() => {
                         setCallerId(player.id)
-                        setActiveHandId(handPlayers[0]?.id ?? '')
                         setFormError('')
                       }}>🃏</button>
                     )}
@@ -280,16 +264,6 @@ function App() {
                 ))}
               </tr>
             } />
-            {callerId && (
-              <div className="mobile-keypad" role="group" aria-label="Score keypad">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
-                  <button className="mobile-keypad-key" key={digit} type="button" aria-label={`Enter digit ${digit}`} onClick={() => updateActiveHand((value) => `${value}${digit}`)}>{digit}</button>
-                ))}
-                <button className="mobile-keypad-key" type="button" aria-label="Toggle negative sign" onClick={() => updateActiveHand((value) => value.startsWith('-') ? value.slice(1) : `-${value}`)}>-</button>
-                <button className="mobile-keypad-key" type="button" aria-label="Enter digit 0" onClick={() => updateActiveHand((value) => `${value}0`)}>0</button>
-                <button className="mobile-keypad-key" type="button" aria-label="Delete last digit" onClick={() => updateActiveHand((value) => value.slice(0, -1))}>⌫</button>
-              </div>
-            )}
             {formError && <p role="alert" className="form-error">{formError}</p>}
             {callerId && <button className="button button-primary next-round-button" type="submit" disabled={!canSubmitRound}>Next round<ArrowRight size={20} aria-hidden="true" /></button>}
           </form>

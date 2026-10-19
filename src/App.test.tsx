@@ -190,26 +190,23 @@ describe('scorekeeper flows', () => {
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds).toHaveLength(1)
   })
 
-  it('enters signed values with the keypad and supports direct field selection', async () => {
+  it('enters signed values with the standard text keyboard', async () => {
     const user = userEvent.setup()
     render(<App />)
     await createTwoPlayerGame(user)
     await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
 
     const ada = screen.getByLabelText('Ada hand value')
-    expect(ada).toHaveAttribute('inputmode', 'none')
-    await user.click(screen.getByRole('button', { name: 'Enter digit 4' }))
-    await user.click(screen.getByRole('button', { name: 'Toggle negative sign' }))
-    await user.click(screen.getByRole('button', { name: 'Toggle negative sign' }))
-    await user.click(screen.getByRole('button', { name: 'Toggle negative sign' }))
-    await user.click(screen.getByRole('button', { name: 'Enter digit 1' }))
-    await user.click(screen.getByRole('button', { name: 'Delete last digit' }))
+    expect(ada).toHaveAttribute('type', 'text')
+    expect(ada).not.toHaveAttribute('inputmode')
+    expect(screen.queryByRole('group', { name: 'Score keypad' })).not.toBeInTheDocument()
+    await user.type(ada, '-4')
     expect(ada).toHaveValue('-4')
 
     await user.click(screen.getByLabelText('Bert hand value'))
     const bert = screen.getByLabelText('Bert hand value')
     expect(document.activeElement).toBe(bert)
-    await user.click(screen.getByRole('button', { name: 'Enter digit 2' }))
+    await user.type(bert, '2')
     await user.click(screen.getByRole('button', { name: 'Next round' }))
 
     expect(screen.getByText('ROUND 2')).toBeInTheDocument()
@@ -228,8 +225,8 @@ describe('scorekeeper flows', () => {
     expect(ada).not.toHaveAttribute('maxlength')
     expect(ada).not.toHaveAttribute('min')
     expect(ada).not.toHaveAttribute('max')
-    await user.click(screen.getByRole('button', { name: 'Toggle negative sign' }))
-    for (const digit of [1, 2, 3]) await user.click(screen.getByRole('button', { name: `Enter digit ${digit}` }))
+    expect(ada).not.toHaveAttribute('inputmode')
+    await user.type(ada, '-123')
     expect(ada).toHaveValue('-123')
     await user.type(screen.getByLabelText('Bert hand value'), '51')
     await user.click(screen.getByRole('button', { name: 'Next round' }))
@@ -237,7 +234,7 @@ describe('scorekeeper flows', () => {
     expect(Object.values(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds[0].hands)).toEqual([-123, 51])
   })
 
-  it('omits keypad navigation and enables the round action only for complete active-player values', async () => {
+  it('uses standard text inputs and enables the round action only for complete active-player values', async () => {
     const initial = createGame([
       { id: 'ada', name: 'Ada' }, { id: 'bert', name: 'Bert' }, { id: 'cody', name: 'Cody' },
     ], () => 0)
@@ -252,17 +249,16 @@ describe('scorekeeper flows', () => {
     await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
 
     expect(screen.queryByLabelText('Bert hand value')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Next hand value|Enter and submit round/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'Score keypad' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Next round' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Next round' }))
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByText('ROUND 3')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Enter digit 1' }))
-    await user.click(screen.getByRole('button', { name: 'Toggle negative sign' }))
+    await user.type(screen.getByLabelText('Ada hand value'), '-1')
     expect(screen.getByRole('button', { name: 'Next round' })).toBeDisabled()
     await user.click(screen.getByLabelText('Cody hand value'))
-    await user.click(screen.getByRole('button', { name: 'Enter digit 3' }))
+    await user.type(screen.getByLabelText('Cody hand value'), '3')
     expect(screen.getByRole('button', { name: 'Next round' })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: 'Next round' }))
 
