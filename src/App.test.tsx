@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -11,7 +11,10 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.unstubAllGlobals()
+})
 
 async function createTwoPlayerGame(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'New Game' }))
@@ -21,6 +24,43 @@ async function createTwoPlayerGame(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('scorekeeper flows', () => {
+  it.each(['W'.repeat(40), 'Alexandria Catherine Montgomery Smith'])('fits %s to its column and regrows on resize without measuring hidden names', async (name) => {
+    let availableWidth = 80
+    const resizeCallbacks: (() => void)[] = []
+    const disconnect = vi.fn()
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { resizeCallbacks.push(callback) }
+      observe = vi.fn()
+      disconnect = disconnect
+    })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const width = this.classList.contains('player-name') ? availableWidth
+        : this.classList.contains('player-name-text') ? 320 * (Number.parseFloat(this.style.fontSize) || 16) / 16 : 0
+      return new DOMRect(0, 0, width, 24)
+    })
+    saveGame(createGame([{ id: 'long', name }, { id: 'ada', name: 'Ada' }], () => 0))
+    const user = userEvent.setup()
+    const { container, unmount } = render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Resume Game' }))
+    const text = container.querySelector<HTMLElement>('.scoreboard-heading .player-name-text')!
+    expect(text.textContent).toBe(name)
+    expect(Number.parseFloat(text.style.fontSize)).toBeCloseTo(3.97)
+    expect(resizeCallbacks).toHaveLength(2)
+    expect(container.querySelector('.sr-only .player-name-text')).toBeNull()
+
+    availableWidth = 160
+    act(() => resizeCallbacks.forEach((callback) => callback()))
+    expect(Number.parseFloat(text.style.fontSize)).toBeCloseTo(7.97)
+    availableWidth = 500
+    act(() => window.dispatchEvent(new Event('resize')))
+    expect(text.style.fontSize).toBe('')
+    availableWidth = 0
+    act(() => resizeCallbacks.forEach((callback) => callback()))
+    expect(text.style.fontSize).toBe('')
+    unmount()
+    expect(disconnect).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps the sticky player strip and exposes one accessible scoreboard without minimum table widths', async () => {
     const user = userEvent.setup()
     const { container } = render(<App />)
@@ -33,6 +73,14 @@ describe('scorekeeper flows', () => {
     expect(within(screen.getByRole('table', { name: 'Scoreboard' })).getAllByRole('columnheader')).toHaveLength(2)
     expect(heading.querySelector('table')!.style.minWidth).toBe('')
     expect(history.querySelector('table')!.style.minWidth).toBe('')
+    for (const header of container.querySelectorAll('.scoreboard th')) {
+      expect(Array.from(header.children).map((child) => child.className)).toEqual(['player-name', 'player-tags', 'player-total'])
+    }
+    const dealer = heading.querySelector('.dealer-tag')!
+    const dealerName = dealer.closest('th')!.querySelector('.player-name')!.textContent
+    await user.click(screen.getByRole('button', { name: `${dealerName} calls WIN` }))
+    expect(dealer.parentElement).toContainElement(heading.querySelector('.win-tag'))
+    expect(dealer.parentElement?.nextElementSibling).toHaveClass('player-total')
   })
 
   it('limits setup to six players and allows adding again after removal', async () => {
@@ -135,8 +183,8 @@ describe('scorekeeper flows', () => {
     expect(scoreboard.getByRole('columnheader', { name: /Ada/ })).toHaveTextContent('Total score: 0')
     expect(scoreboard.getByRole('columnheader', { name: /Bert/ })).toHaveTextContent('Total score: 2')
     const cells = within(scoreboard.getByRole('row', { name: 'Round 1' })).getAllByRole('cell')
-    expect(cells[0]).toHaveTextContent('Running total: 0🃏 -1')
-    expect(cells[1]).toHaveTextContent('Running total: 2🎴 +2')
+    expect(cells[0]).toHaveTextContent('Running total: 0🃏-1')
+    expect(cells[1]).toHaveTextContent('Running total: 2🎴+2')
     expect(screen.queryByLabelText('Ada hand value')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ada calls WIN' })).toBeInTheDocument()
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds).toHaveLength(1)
@@ -311,7 +359,8 @@ describe('scorekeeper flows', () => {
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Resume Game' }))
     expect(within(screen.getByRole('columnheader', { name: /Ada/ })).getByText('Winner')).toHaveClass('status-winner')
-    expect(within(screen.getByRole('columnheader', { name: /Bert/ })).getByText('Game over')).toBeInTheDocument()
+    expect(within(screen.getByRole('columnheader', { name: /Bert/ })).getByRole('img', { name: 'Eliminated' })).toHaveTextContent('💀')
+    expect(screen.queryByText('Game over')).not.toBeInTheDocument()
     expect(within(screen.getByRole('table', { name: 'Scoreboard' })).getAllByText('Winner')).toHaveLength(1)
     expect(screen.queryByText(/game complete/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Ada wins' })).not.toBeInTheDocument()
@@ -372,6 +421,8 @@ describe('scorekeeper flows', () => {
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds).toHaveLength(0)
     expect(screen.getByLabelText('Ada hand value')).toHaveValue('1')
     expect(screen.getByLabelText('Bert hand value')).toHaveValue('6')
+    expect(screen.getByRole('columnheader', { name: /Bert/ })).toHaveTextContent('Total score: 75')
+    expect(screen.queryByRole('img', { name: 'Eliminated' })).not.toBeInTheDocument()
     expect(within(screen.getByRole('columnheader', { name: /Bert/ })).getByText('WIN')).toBeInTheDocument()
     await user.clear(screen.getByLabelText('Bert hand value'))
     await user.type(screen.getByLabelText('Bert hand value'), '0')
@@ -446,7 +497,7 @@ describe('scorekeeper flows', () => {
       const hand = index === 0 ? hands.ada : hands.bert
       const total = cell.querySelector<HTMLSpanElement>('.round-total')!
       expect(cell.firstElementChild).toBe(total)
-      expect(cell.querySelector('.round-hand')).toHaveTextContent(`${emojis[index]} ${hand > 0 ? '+' : ''}${hand}`)
+      expect(cell.querySelector('.round-hand')?.textContent).toBe(`${emojis[index]}${hand > 0 ? '+' : ''}${hand}`)
       expect(cell.querySelector('.round-hand')).not.toHaveTextContent(/[()]/)
       expect(total).toHaveTextContent(`Running total: ${totals[index]}`)
       expect(headers[index]).toHaveTextContent(`Total score: ${totals[index]}`)
@@ -464,6 +515,28 @@ describe('scorekeeper flows', () => {
     }
   })
 
+  it('preserves earlier totals when a player exceeds 100 and restores their total on undo', async () => {
+    const initial = createGame([
+      { id: 'ada', name: 'Ada' }, { id: 'bert', name: 'Bert' }, { id: 'cody', name: 'Cody' },
+    ], () => 0)
+    const prior = submitRound(initial, { callerId: 'ada', hands: { ada: 0, bert: 76, cody: 2 } }, () => 0)
+    saveGame(submitRound(prior, { callerId: 'bert', hands: { ada: 1, bert: 6, cody: 2 } }, () => 0))
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Resume Game' }))
+    const before = within(screen.getByRole('row', { name: 'Round 1' })).getAllByRole('cell')[1]
+    expect(before).toHaveTextContent('Running total: 76🎴+76')
+    const eliminated = within(screen.getByRole('row', { name: 'Round 2' })).getAllByRole('cell')[1]
+    expect(eliminated.textContent).toBe('💀')
+    expect(screen.getByRole('columnheader', { name: /Bert/ })).not.toHaveTextContent(/101|Total score|Game over/)
+
+    await user.click(screen.getByRole('button', { name: 'Undo Last Round' }))
+    expect(screen.getByRole('columnheader', { name: /Bert/ })).toHaveTextContent('Total score: 76')
+    expect(screen.getByLabelText('Bert hand value')).toHaveValue('6')
+    expect(screen.queryByRole('img', { name: 'Eliminated' })).not.toBeInTheDocument()
+    expect(before).toHaveTextContent('Running total: 76🎴+76')
+  })
+
   it('keeps eliminated players aligned in history without WIN or hand controls', async () => {
     const initial = createGame([
       { id: 'ada', name: 'Ada' }, { id: 'bert', name: 'Bert' }, { id: 'cody', name: 'Cody' },
@@ -479,15 +552,21 @@ describe('scorekeeper flows', () => {
 
     const table = within(screen.getByRole('table', { name: 'Scoreboard' }))
     expect(table.getAllByRole('columnheader').map((header) => header.querySelector('.player-name')?.textContent)).toEqual(['Ada', 'Bert', 'Cody'])
-    expect(table.getByRole('columnheader', { name: /Bert/ })).toHaveTextContent('Game over')
+    const bertHeader = table.getByRole('columnheader', { name: /Bert/ })
+    expect(within(bertHeader).getByRole('img', { name: 'Eliminated' })).toHaveTextContent('💀')
+    expect(bertHeader).not.toHaveTextContent(/Total score|100|Game over/)
+    const elimination = within(table.getByRole('row', { name: 'Round 1' })).getAllByRole('cell')[1]
+    expect(elimination.textContent).toBe('💀')
+    expect(within(elimination).getByRole('img', { name: 'Eliminated' })).toBeInTheDocument()
     const history = within(table.getByRole('row', { name: 'Round 2' })).getAllByRole('cell')
     expect(history).toHaveLength(3)
-    expect(within(history[1]).getByLabelText('Did not play')).toHaveTextContent('-')
-    expect(history[1]).toHaveTextContent('Running total: 100')
+    expect(history[1]).toBeEmptyDOMElement()
+    expect(within(table.getByRole('row', { name: 'Round 3 entry' })).getAllByRole('cell')[1]).toBeEmptyDOMElement()
     expect(screen.queryByRole('button', { name: 'Bert calls WIN' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
     expect(screen.getAllByRole('textbox', { name: /hand value/ })).toHaveLength(2)
     expect(screen.queryByLabelText('Bert hand value')).not.toBeInTheDocument()
     expect(within(table.getByRole('row', { name: 'Round 3 entry' })).getAllByRole('cell')).toHaveLength(3)
+    expect(within(table.getByRole('row', { name: 'Round 3 entry' })).getAllByRole('cell')[1]).toBeEmptyDOMElement()
   })
 })

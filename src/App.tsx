@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Minus, Plus } from 'lucide-react'
 import {
   activePlayers,
@@ -256,7 +256,7 @@ function App() {
               <tr aria-label={`Round ${currentRound} entry`}>
                 {players.map((player) => (
                   <td key={player.id}>
-                    {player.score >= 100 ? <span aria-label="Eliminated">-</span> : callerId ? (
+                    {player.score >= 100 ? null : callerId ? (
                       <div className={`hand-input${activeHandId === player.id ? ' is-active' : ''}`}>
                         <label className="sr-only" htmlFor={`hand-${player.id}`}>Hand for {player.name}</label>
                         <input
@@ -324,36 +324,73 @@ function roundAdjustment(round: GameState['rounds'][number], playerId: string): 
   return undefined
 }
 
+function FittedPlayerName({ name }: { name: string }) {
+  const containerRef = useRef<HTMLSpanElement>(null)
+  const textRef = useRef<HTMLSpanElement>(null)
+
+  useLayoutEffect(() => {
+    const container = containerRef.current!
+    const text = textRef.current!
+    let disposed = false
+    function fit() {
+      if (disposed) return
+      text.style.fontSize = ''
+      const available = container.getBoundingClientRect().width
+      const natural = text.getBoundingClientRect().width
+      if (available <= 0 || natural <= available) return
+      const baseSize = Number.parseFloat(getComputedStyle(container).fontSize) || 16
+      text.style.fontSize = `${Math.floor(baseSize * Math.max(0, available - 0.5) / natural * 100) / 100}px`
+    }
+    fit()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(fit)
+    observer?.observe(container)
+    window.addEventListener('resize', fit)
+    document.fonts?.addEventListener('loadingdone', fit)
+    void document.fonts?.ready.then(fit)
+    return () => {
+      disposed = true
+      observer?.disconnect()
+      window.removeEventListener('resize', fit)
+      document.fonts?.removeEventListener('loadingdone', fit)
+    }
+  }, [name])
+
+  return <span className="player-name" ref={containerRef}><span className="player-name-text" ref={textRef}>{name}</span></span>
+}
+
 function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: string; entry?: ReactNode }) {
   const { players, dealerId, rounds } = game
-  const playerTiles = players.map((player) => (
+  const playerTiles = (visible: boolean) => players.map((player) => (
     <th scope="col" key={player.id} className={player.score >= 100 ? 'is-eliminated' : undefined}>
-      <span className="player-name">{player.name}</span>
-      <span className="player-total"><span className="sr-only">Total score: </span>{player.score}</span>
+      {visible ? <FittedPlayerName name={player.name} /> : <span className="player-name">{player.name}</span>}
       <span className="player-tags">
         {player.id === dealerId && <span className="dealer-tag">Dealer</span>}
         {player.id === callerId && <span className="win-tag">WIN</span>}
-        {player.score >= 100 && <span className="status-eliminated">Game over</span>}
         {game.status === 'finished' && player.id === game.winnerId && <span className="status-winner">Winner</span>}
       </span>
+      <span className="player-total">{player.score >= 100 ? <span role="img" aria-label="Eliminated">💀</span> : <><span className="sr-only">Total score: </span>{player.score}</>}</span>
     </th>
   ))
   return (
     <div className="scoreboard-region">
       <div className="scoreboard-heading" aria-hidden="true">
         <table className="scoreboard">
-          <thead><tr>{playerTiles}</tr></thead>
+          <thead><tr>{playerTiles(true)}</tr></thead>
         </table>
       </div>
       <div className="table-wrap scoreboard-history">
         <table aria-label="Scoreboard" className="scoreboard">
-          <thead className="sr-only"><tr>{playerTiles}</tr></thead>
+          <thead className="sr-only"><tr>{playerTiles(false)}</tr></thead>
           <tbody>
             {rounds.map((round) => (
               <tr key={round.roundNumber} aria-label={`Round ${round.roundNumber}`}>
                 {players.map((player) => {
                   const hasHand = Object.hasOwn(round.hands, player.id)
-                  const adjustment = hasHand ? roundAdjustment(round, player.id) : undefined
+                  if (round.eliminatedIds.includes(player.id)) {
+                    return <td key={player.id}><span className="round-total" role="img" aria-label="Eliminated">💀</span></td>
+                  }
+                  if (!hasHand) return <td key={player.id} />
+                  const adjustment = roundAdjustment(round, player.id)
                   const handEmoji = adjustment === 'penalty' ? '🤡' : adjustment === 'reduction' ? '🍀' : player.id === round.callerId ? '🃏' : '🎴'
                   return (
                     <td key={player.id} className={adjustment ? `score-${adjustment}` : undefined}>
@@ -362,9 +399,7 @@ function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: str
                         {adjustment && <sup aria-label={adjustment === 'penalty' ? 'Penalty: +25' : 'Reduction: -25'}>{adjustment === 'penalty' ? ' +25' : ' -25'}</sup>}
                       </span>
                       <span className="round-hand">
-                        {hasHand ? <>
-                          <span role="img" aria-label="Hand value">{handEmoji}</span> {`${round.hands[player.id] > 0 ? '+' : ''}${round.hands[player.id]}`}
-                        </> : <span aria-label="Did not play">-</span>}
+                        <span role="img" aria-label="Hand value">{handEmoji}</span>{`${round.hands[player.id] > 0 ? '+' : ''}${round.hands[player.id]}`}
                       </span>
                     </td>
                   )
