@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -21,7 +21,7 @@ async function createTwoPlayerGame(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('scorekeeper flows', () => {
-  it('synchronizes the sticky player strip with history and exposes one accessible scoreboard', async () => {
+  it('keeps the sticky player strip and exposes one accessible scoreboard without minimum table widths', async () => {
     const user = userEvent.setup()
     const { container } = render(<App />)
     await createTwoPlayerGame(user)
@@ -31,12 +31,38 @@ describe('scorekeeper flows', () => {
     expect(heading).toHaveAttribute('aria-hidden', 'true')
     expect(screen.getAllByRole('table')).toHaveLength(1)
     expect(within(screen.getByRole('table', { name: 'Scoreboard' })).getAllByRole('columnheader')).toHaveLength(2)
-    history.scrollLeft = 120
-    fireEvent.scroll(history)
-    expect(heading.scrollLeft).toBe(120)
-    heading.scrollLeft = 40
-    fireEvent.scroll(heading)
-    expect(history.scrollLeft).toBe(40)
+    expect(heading.querySelector('table')!.style.minWidth).toBe('')
+    expect(history.querySelector('table')!.style.minWidth).toBe('')
+  })
+
+  it('limits setup to six players and allows adding again after removal', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'New Game' }))
+    const add = screen.getByRole('button', { name: 'Add player' })
+    for (let index = 2; index < 6; index += 1) await user.click(add)
+    expect(screen.getAllByRole('textbox')).toHaveLength(6)
+    expect(add).toBeDisabled()
+    await user.click(add)
+    expect(screen.getAllByRole('textbox')).toHaveLength(6)
+    await user.click(screen.getByRole('button', { name: 'Remove player 6' }))
+    expect(add).toBeEnabled()
+    await user.click(add)
+    for (let index = 1; index <= 6; index += 1) {
+      await user.type(screen.getByLabelText(`Player ${index}`), `Player ${index}`)
+    }
+    await user.click(screen.getByRole('button', { name: 'Start game' }))
+    expect(within(screen.getByRole('table', { name: 'Scoreboard' })).getAllByRole('columnheader')).toHaveLength(6)
+    expect(screen.getAllByRole('button', { name: /calls WIN/ })).toHaveLength(6)
+  })
+
+  it('offers neither resume nor a warning for an oversized saved game', () => {
+    const game = createGame(Array.from({ length: 6 }, (_, index) => ({ id: `p${index}`, name: `Player ${index}` })))
+    game.players.push({ id: 'extra', name: 'Extra', score: 0 })
+    saveGame(game)
+    render(<App />)
+    expect(screen.queryByRole('button', { name: 'Resume Game' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('uses matching compact player controls and fixed setup navigation without a player box', async () => {
@@ -87,7 +113,7 @@ describe('scorekeeper flows', () => {
 
     const header = within(container.querySelector('header')!)
     expect(header.getByText('ROUND 1')).toBeInTheDocument()
-    expect(header.getByRole('button', { name: 'Quit Game' })).toBeInTheDocument()
+    expect(header.getByRole('button', { name: 'Quit' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Scoreboard' })).not.toBeInTheDocument()
   })
 
@@ -110,7 +136,7 @@ describe('scorekeeper flows', () => {
     expect(scoreboard.getByRole('columnheader', { name: /Bert/ })).toHaveTextContent('Total score: 2')
     const cells = within(scoreboard.getByRole('row', { name: 'Round 1' })).getAllByRole('cell')
     expect(cells[0]).toHaveTextContent('Running total: 0🃏 -1')
-    expect(cells[1]).toHaveTextContent('Running total: 2🃏 +2')
+    expect(cells[1]).toHaveTextContent('Running total: 2🎴 +2')
     expect(screen.queryByLabelText('Ada hand value')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ada calls WIN' })).toBeInTheDocument()
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds).toHaveLength(1)
@@ -145,7 +171,25 @@ describe('scorekeeper flows', () => {
     })
   })
 
-  it('omits keypad navigation and validates values through the standard round action', async () => {
+  it('keeps compact hand fields unrestricted by range or character length', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await createTwoPlayerGame(user)
+    await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
+    const ada = screen.getByLabelText('Ada hand value')
+    expect(ada).not.toHaveAttribute('maxlength')
+    expect(ada).not.toHaveAttribute('min')
+    expect(ada).not.toHaveAttribute('max')
+    await user.click(screen.getByRole('button', { name: 'Toggle negative sign' }))
+    for (const digit of [1, 2, 3]) await user.click(screen.getByRole('button', { name: `Enter digit ${digit}` }))
+    expect(ada).toHaveValue('-123')
+    await user.type(screen.getByLabelText('Bert hand value'), '51')
+    await user.click(screen.getByRole('button', { name: 'Next round' }))
+    expect(screen.getByText('ROUND 2')).toBeInTheDocument()
+    expect(Object.values(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds[0].hands)).toEqual([-123, 51])
+  })
+
+  it('omits keypad navigation and enables the round action only for complete active-player values', async () => {
     const initial = createGame([
       { id: 'ada', name: 'Ada' }, { id: 'bert', name: 'Bert' }, { id: 'cody', name: 'Cody' },
     ], () => 0)
@@ -161,32 +205,55 @@ describe('scorekeeper flows', () => {
 
     expect(screen.queryByLabelText('Bert hand value')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Next hand value|Enter and submit round/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next round' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Next round' }))
-    expect(screen.getByRole('alert')).toHaveTextContent('safe whole number for Ada')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByText('ROUND 3')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Enter digit 1' }))
     await user.click(screen.getByRole('button', { name: 'Toggle negative sign' }))
+    expect(screen.getByRole('button', { name: 'Next round' })).toBeDisabled()
     await user.click(screen.getByLabelText('Cody hand value'))
     await user.click(screen.getByRole('button', { name: 'Enter digit 3' }))
+    expect(screen.getByRole('button', { name: 'Next round' })).toBeEnabled()
     await user.click(screen.getByRole('button', { name: 'Next round' }))
 
     expect(screen.getByText('ROUND 4')).toBeInTheDocument()
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds.at(-1).hands).toEqual({ ada: -1, cody: 3 })
   })
 
-  it('rejects missing hand values without changing the last committed save', async () => {
+  it('disables the round action for missing or invalid values without changing the last committed save', async () => {
     const user = userEvent.setup()
     render(<App />)
     await createTwoPlayerGame(user)
     const committed = localStorage.getItem(STORAGE_KEY)
 
     await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
-    await user.click(screen.getByRole('button', { name: 'Next round' }))
+    const nextRound = screen.getByRole('button', { name: 'Next round' })
+    expect(nextRound).toBeDisabled()
+    await user.click(nextRound)
 
-    expect(screen.getByRole('alert')).toHaveTextContent('safe whole number for Ada')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(localStorage.getItem(STORAGE_KEY)).toBe(committed)
     expect(screen.getByText('ROUND 1')).toBeInTheDocument()
+
+    const ada = screen.getByLabelText('Ada hand value')
+    const bert = screen.getByLabelText('Bert hand value')
+    await user.type(ada, '0')
+    expect(nextRound).toBeDisabled()
+    for (const value of ['-', '1.5', 'abc', '9007199254740992']) {
+      await user.type(bert, value)
+      expect(nextRound).toBeDisabled()
+      await user.clear(bert)
+    }
+    await user.type(bert, '-2')
+    expect(nextRound).toBeEnabled()
+    await user.clear(ada)
+    expect(nextRound).toBeDisabled()
+    await user.type(ada, '0')
+    expect(nextRound).toBeEnabled()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(committed)
   })
 
   it('instantly undoes a restored round with its caller and editable values, then saves corrections', async () => {
@@ -264,12 +331,12 @@ describe('scorekeeper flows', () => {
     ])
 
     vi.spyOn(window, 'confirm').mockReturnValue(false)
-    await user.click(screen.getByRole('button', { name: 'Quit Game' }))
+    await user.click(screen.getByRole('button', { name: 'Quit' }))
     expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull()
     expect(screen.getByText('ROUND 1')).toBeInTheDocument()
 
     vi.mocked(window.confirm).mockReturnValue(true)
-    await user.click(screen.getByRole('button', { name: 'Quit Game' }))
+    await user.click(screen.getByRole('button', { name: 'Quit' }))
     await waitFor(() => expect(localStorage.getItem(STORAGE_KEY)).toBeNull())
     expect(screen.getByRole('button', { name: 'New Game' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Resume Game' })).not.toBeInTheDocument()
@@ -324,8 +391,9 @@ describe('scorekeeper flows', () => {
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
     const entry = screen.getByRole('row', { name: 'Round 1 entry' })
     const cells = within(entry).getAllByRole('cell')
-    expect(within(cells[0]).getByRole('button', { name: 'Ada calls WIN' })).toHaveTextContent('WIN')
-    expect(within(cells[1]).getByRole('button', { name: 'Bert calls WIN' })).toHaveTextContent('WIN')
+    expect(within(cells[0]).getByRole('button', { name: 'Ada calls WIN' })).toHaveTextContent('🃏')
+    expect(within(cells[1]).getByRole('button', { name: 'Bert calls WIN' })).toHaveTextContent('🃏')
+    expect(within(cells[0]).getByRole('button')).toHaveAttribute('title', 'Ada calls WIN')
 
     await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
     const ada = within(screen.getByRole('columnheader', { name: /Ada/ }))
@@ -333,6 +401,7 @@ describe('scorekeeper flows', () => {
     expect(ada.getByText('WIN')).toBeInTheDocument()
     expect(within(cells[0]).getByLabelText('Ada hand value')).toBeInTheDocument()
     expect(within(cells[1]).getByLabelText('Bert hand value')).toBeInTheDocument()
+    expect(cells[0].querySelector('label')).toHaveClass('sr-only')
     await user.type(screen.getByLabelText('Ada hand value'), '1')
     await user.type(screen.getByLabelText('Bert hand value'), '4')
 
@@ -350,16 +419,18 @@ describe('scorekeeper flows', () => {
   })
 
   it.each([
-    { name: 'low caller penalty', before: [0, 0], hands: { ada: 4, bert: 3 }, totals: [25, 3], adjustments: ['penalty', null] },
-    { name: 'high caller penalty with suppressed opponent score', before: [0, 0], hands: { ada: 6, bert: 50 }, totals: [25, 0], adjustments: ['penalty', null] },
-    { name: 'negative hand reaching 50', before: [51, 0], hands: { ada: -1, bert: 2 }, totals: [25, 2], adjustments: ['reduction', null] },
-    { name: 'opponent reaching 50', before: [0, 48], hands: { ada: -1, bert: 2 }, totals: [0, 25], adjustments: [null, 'reduction'] },
-    { name: 'opponent reaching 75', before: [0, 73], hands: { ada: 1, bert: 2 }, totals: [1, 50], adjustments: [null, 'reduction'] },
-    { name: 'opponent reaching 100', before: [0, 98], hands: { ada: 1, bert: 2 }, totals: [1, 75], adjustments: [null, 'reduction'] },
-    { name: 'ordinary negative hand', before: [10, 0], hands: { ada: -1, bert: 2 }, totals: [9, 2], adjustments: [null, null] },
-    { name: 'zero clamping without a reduction', before: [0, 0], hands: { ada: -1, bert: 2 }, totals: [0, 2], adjustments: [null, null] },
-    { name: 'zero hand without a sign', before: [0, 0], hands: { ada: 0, bert: 5 }, totals: [0, 5], adjustments: [null, null] },
-  ])('shows hand values, totals and correct annotations for $name', async ({ before, hands, totals, adjustments }) => {
+    { name: 'low caller penalty', before: [0, 0], hands: { ada: 4, bert: 3 }, totals: [25, 3], adjustments: ['penalty', null], emojis: ['🤡', '🎴'] },
+    { name: 'tied caller penalty', before: [0, 0], hands: { ada: 5, bert: 5 }, totals: [25, 5], adjustments: ['penalty', null], emojis: ['🤡', '🎴'] },
+    { name: 'high caller penalty with suppressed opponent score', before: [0, 0], hands: { ada: 6, bert: 50 }, totals: [25, 0], adjustments: ['penalty', null], emojis: ['🤡', '🎴'] },
+    { name: 'negative hand reaching 50', before: [51, 0], hands: { ada: -1, bert: 2 }, totals: [25, 2], adjustments: ['reduction', null], emojis: ['🍀', '🎴'] },
+    { name: 'opponent reduction with caller penalty', before: [0, 47], hands: { ada: 4, bert: 3 }, totals: [25, 25], adjustments: ['penalty', 'reduction'], emojis: ['🤡', '🍀'] },
+    { name: 'opponent reaching 50', before: [0, 48], hands: { ada: -1, bert: 2 }, totals: [0, 25], adjustments: [null, 'reduction'], emojis: ['🃏', '🍀'] },
+    { name: 'opponent reaching 75', before: [0, 73], hands: { ada: 1, bert: 2 }, totals: [1, 50], adjustments: [null, 'reduction'], emojis: ['🃏', '🍀'] },
+    { name: 'opponent reaching 100', before: [0, 98], hands: { ada: 1, bert: 2 }, totals: [1, 75], adjustments: [null, 'reduction'], emojis: ['🃏', '🍀'] },
+    { name: 'ordinary negative hand', before: [10, 0], hands: { ada: -1, bert: 2 }, totals: [9, 2], adjustments: [null, null], emojis: ['🃏', '🎴'] },
+    { name: 'zero clamping without a reduction', before: [0, 0], hands: { ada: -1, bert: 2 }, totals: [0, 2], adjustments: [null, null], emojis: ['🃏', '🎴'] },
+    { name: 'zero hand without a sign', before: [0, 0], hands: { ada: 0, bert: 5 }, totals: [0, 5], adjustments: [null, null], emojis: ['🃏', '🎴'] },
+  ])('shows hand values, totals and correct annotations for $name', async ({ before, hands, totals, adjustments, emojis }) => {
     const initial = createGame([{ id: 'ada', name: 'Ada' }, { id: 'bert', name: 'Bert' }], () => 0)
     saveGame(submitRound({
       ...initial,
@@ -375,14 +446,17 @@ describe('scorekeeper flows', () => {
       const hand = index === 0 ? hands.ada : hands.bert
       const total = cell.querySelector<HTMLSpanElement>('.round-total')!
       expect(cell.firstElementChild).toBe(total)
-      expect(cell.querySelector('.round-hand')).toHaveTextContent(`${hand <= 5 ? '🃏' : '🎴'} ${hand > 0 ? '+' : ''}${hand}`)
+      expect(cell.querySelector('.round-hand')).toHaveTextContent(`${emojis[index]} ${hand > 0 ? '+' : ''}${hand}`)
       expect(cell.querySelector('.round-hand')).not.toHaveTextContent(/[()]/)
       expect(total).toHaveTextContent(`Running total: ${totals[index]}`)
       expect(headers[index]).toHaveTextContent(`Total score: ${totals[index]}`)
       const adjustment = adjustments[index]
       if (adjustment) {
         expect(cell).toHaveClass(`score-${adjustment}`)
-        expect(within(total).getByLabelText(adjustment === 'penalty' ? 'Penalty: +25' : 'Reduction: -25')).toHaveTextContent(adjustment === 'penalty' ? '(+25)' : '(-25)')
+        const annotation = within(total).getByLabelText(adjustment === 'penalty' ? 'Penalty: +25' : 'Reduction: -25')
+        expect(annotation.tagName).toBe('SUP')
+        expect(annotation.textContent).toBe(adjustment === 'penalty' ? ' +25' : ' -25')
+        expect(total).not.toHaveTextContent(/[()]/)
       } else {
         expect(cell).not.toHaveClass('score-penalty', 'score-reduction')
         expect(cell).not.toHaveTextContent(/[()]/)

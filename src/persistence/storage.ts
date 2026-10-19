@@ -1,4 +1,4 @@
-import type { CompletedRound, GameFrame, GameState, Player } from '../domain/game'
+import { MAX_PLAYERS, type CompletedRound, type GameFrame, type GameState, type Player } from '../domain/game'
 
 export const STORAGE_KEY = 'card-game-active'
 const STORAGE_VERSION = 1
@@ -38,6 +38,10 @@ export function loadSavedGame(storage = browserStorage()): LoadGameResult {
   }
   if (!isRecord(payload) || payload.version !== STORAGE_VERSION) {
     return { game: null, warning: 'The saved game uses an unsupported format and could not be restored.' }
+  }
+
+  if (isRecord(payload.game) && Array.isArray(payload.game.players) && payload.game.players.length > MAX_PLAYERS) {
+    return { game: null, warning: null }
   }
 
   const game = validateGame(payload.game)
@@ -80,7 +84,7 @@ function validateGame(value: unknown): GameState | null {
   if (players.some((player) => player === null)) return null
   const validPlayers = players as Player[]
   const ids = validPlayers.map((player) => player.id)
-  if (new Set(ids).size !== ids.length || validPlayers.length < 2) return null
+  if (new Set(ids).size !== ids.length || validPlayers.length < 2 || validPlayers.length > MAX_PLAYERS) return null
 
   const frame = validateFrame({
     players: validPlayers,
@@ -130,6 +134,7 @@ function validateFrame(value: unknown): GameFrame | null {
     !isRecord(value) ||
     !Array.isArray(value.players) ||
     value.players.length < 2 ||
+    value.players.length > MAX_PLAYERS ||
     !value.players.every((player) => validatePlayer(player) !== null) ||
     !Number.isSafeInteger(value.roundNumber) ||
     (value.roundNumber as number) < 1 ||

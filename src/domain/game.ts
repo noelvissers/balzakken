@@ -1,5 +1,7 @@
 export type GameStatus = 'active' | 'finished'
 
+export const MAX_PLAYERS = 6
+
 export interface Player {
   id: string
   name: string
@@ -61,6 +63,7 @@ export function createGame(
   random: RandomSource = Math.random,
 ): GameState {
   if (players.length < 2) throw new Error('At least two players are required.')
+  if (players.length > MAX_PLAYERS) throw new Error(`At most ${MAX_PLAYERS} players are allowed.`)
   const ids = players.map((player) => player.id)
   if (new Set(ids).size !== ids.length || ids.some((id) => !id.trim())) {
     throw new Error('Player IDs must be non-empty and unique.')

@@ -36,6 +36,12 @@ describe('createGame', () => {
     expect(() => createGame([{ id: 'x', name: 'One' }, { id: 'x', name: 'Two' }])).toThrow()
   })
 
+  it('allows six players but rejects seven', () => {
+    const players = Array.from({ length: 7 }, (_, index) => ({ id: `p${index}`, name: `Player ${index}` }))
+    expect(createGame(players.slice(0, 6)).players).toHaveLength(6)
+    expect(() => createGame(players)).toThrow('At most 6 players are allowed.')
+  })
+
   it('rejects blank names but allows duplicate display names', () => {
     expect(() => createGame([{ id: 'a', name: '  ' }, { id: 'b', name: 'Bert' }])).toThrow(/names/)
     expect(createGame([{ id: 'a', name: 'Sam' }, { id: 'b', name: 'Sam' }]).players.map((player) => player.name)).toEqual(['Sam', 'Sam'])

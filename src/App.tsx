@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, Minus, Plus } from 'lucide-react'
 import {
   activePlayers,
   createGame,
+  MAX_PLAYERS,
   submitRound,
   undoLastRound,
   type GameState,
@@ -14,6 +15,10 @@ import './App.css'
 type Screen = 'welcome' | 'setup' | 'game'
 type DraftPlayer = { id: string; name: string }
 let idSequence = 0
+
+function isValidHandValue(value: string): boolean {
+  return /^-?\d+$/.test(value) && Number.isSafeInteger(Number(value))
+}
 
 function makeId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -77,7 +82,7 @@ function App() {
     const hands: Record<string, number> = {}
     for (const player of participants) {
       const value = handValues[player.id] ?? ''
-      if (!/^-?\d+$/.test(value) || !Number.isSafeInteger(Number(value))) {
+      if (!isValidHandValue(value)) {
         setFormError(`Enter a safe whole number for ${player.name}.`)
         return
       }
@@ -194,7 +199,7 @@ function App() {
                 </div>
               ))}
               <div className="player-add-row">
-                <button className="button player-control" type="button" aria-label="Add player" title="Add player" onClick={() => setDraftPlayers((players) => [...players, { id: makeId(), name: '' }])}>
+                <button className="button player-control" type="button" aria-label="Add player" title="Add player" disabled={draftPlayers.length >= MAX_PLAYERS} onClick={() => setDraftPlayers((players) => players.length < MAX_PLAYERS ? [...players, { id: makeId(), name: '' }] : players)}>
                   <Plus size={20} aria-hidden="true" />
                 </button>
               </div>
@@ -226,6 +231,7 @@ function App() {
 
   const players = game.players
   const handPlayers = players.filter((player) => player.score < 100)
+  const canSubmitRound = Boolean(callerId) && handPlayers.every((player) => isValidHandValue(handValues[player.id] ?? ''))
   const currentRound = game.roundNumber
   const undoLabel = callerId ? 'Change win caller' : 'Undo Last Round'
   const canUndo = Boolean(callerId || game.rounds.length)
@@ -252,7 +258,7 @@ function App() {
                   <td key={player.id}>
                     {player.score >= 100 ? <span aria-label="Eliminated">-</span> : callerId ? (
                       <div className={`hand-input${activeHandId === player.id ? ' is-active' : ''}`}>
-                        <label htmlFor={`hand-${player.id}`}>Hand value<span className="sr-only"> for {player.name}</span></label>
+                        <label className="sr-only" htmlFor={`hand-${player.id}`}>Hand for {player.name}</label>
                         <input
                           id={`hand-${player.id}`}
                           aria-label={`${player.name} hand value`}
@@ -264,11 +270,11 @@ function App() {
                         />
                       </div>
                     ) : (
-                      <button className="button button-primary win-button" type="button" aria-label={`${player.name} calls WIN`} onClick={() => {
+                      <button className="button button-primary win-button" type="button" aria-label={`${player.name} calls WIN`} title={`${player.name} calls WIN`} onClick={() => {
                         setCallerId(player.id)
                         setActiveHandId(handPlayers[0]?.id ?? '')
                         setFormError('')
-                      }}>WIN</button>
+                      }}>🃏</button>
                     )}
                   </td>
                 ))}
@@ -285,7 +291,7 @@ function App() {
               </div>
             )}
             {formError && <p role="alert" className="form-error">{formError}</p>}
-            {callerId && <button className="button button-primary next-round-button" type="submit">Next round<ArrowRight size={20} aria-hidden="true" /></button>}
+            {callerId && <button className="button button-primary next-round-button" type="submit" disabled={!canSubmitRound}>Next round<ArrowRight size={20} aria-hidden="true" /></button>}
           </form>
         </section>
       )}
@@ -303,7 +309,7 @@ function Header({ title, onQuit }: { title?: string; onQuit?: () => void }) {
     <header className="app-header">
       <span className="header-brand"><span className="mark" aria-hidden="true">♠</span><span>Table Score</span></span>
       {title && <span className="header-title">{title}</span>}
-      {onQuit && <button className="button button-subtle header-quit" onClick={onQuit}>Quit Game</button>}
+      {onQuit && <button className="button button-subtle header-quit" onClick={onQuit}>Quit</button>}
     </header>
   )
 }
@@ -320,9 +326,6 @@ function roundAdjustment(round: GameState['rounds'][number], playerId: string): 
 
 function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: string; entry?: ReactNode }) {
   const { players, dealerId, rounds } = game
-  const headingScroll = useRef<HTMLDivElement>(null)
-  const historyScroll = useRef<HTMLDivElement>(null)
-  const tableStyle = { minWidth: players.length * 136 }
   const playerTiles = players.map((player) => (
     <th scope="col" key={player.id} className={player.score >= 100 ? 'is-eliminated' : undefined}>
       <span className="player-name">{player.name}</span>
@@ -337,17 +340,13 @@ function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: str
   ))
   return (
     <div className="scoreboard-region">
-      <div className="scoreboard-heading" aria-hidden="true" ref={headingScroll} onScroll={(event) => {
-        if (historyScroll.current) historyScroll.current.scrollLeft = event.currentTarget.scrollLeft
-      }}>
-        <table className="scoreboard" style={tableStyle}>
+      <div className="scoreboard-heading" aria-hidden="true">
+        <table className="scoreboard">
           <thead><tr>{playerTiles}</tr></thead>
         </table>
       </div>
-      <div className="table-wrap scoreboard-history" ref={historyScroll} onScroll={(event) => {
-        if (headingScroll.current) headingScroll.current.scrollLeft = event.currentTarget.scrollLeft
-      }}>
-        <table aria-label="Scoreboard" className="scoreboard" style={tableStyle}>
+      <div className="table-wrap scoreboard-history">
+        <table aria-label="Scoreboard" className="scoreboard">
           <thead className="sr-only"><tr>{playerTiles}</tr></thead>
           <tbody>
             {rounds.map((round) => (
@@ -355,15 +354,16 @@ function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: str
                 {players.map((player) => {
                   const hasHand = Object.hasOwn(round.hands, player.id)
                   const adjustment = hasHand ? roundAdjustment(round, player.id) : undefined
+                  const handEmoji = adjustment === 'penalty' ? '🤡' : adjustment === 'reduction' ? '🍀' : player.id === round.callerId ? '🃏' : '🎴'
                   return (
                     <td key={player.id} className={adjustment ? `score-${adjustment}` : undefined}>
                       <span className="round-total">
                         <span className="sr-only">Running total: </span>{round.scoresAfter[player.id]}
-                        {adjustment && <> <span aria-label={adjustment === 'penalty' ? 'Penalty: +25' : 'Reduction: -25'}>({adjustment === 'penalty' ? '+25' : '-25'})</span></>}
+                        {adjustment && <sup aria-label={adjustment === 'penalty' ? 'Penalty: +25' : 'Reduction: -25'}>{adjustment === 'penalty' ? ' +25' : ' -25'}</sup>}
                       </span>
                       <span className="round-hand">
                         {hasHand ? <>
-                          <span role="img" aria-label="Hand value">{round.hands[player.id] <= 5 ? '🃏' : '🎴'}</span> {`${round.hands[player.id] > 0 ? '+' : ''}${round.hands[player.id]}`}
+                          <span role="img" aria-label="Hand value">{handEmoji}</span> {`${round.hands[player.id] > 0 ? '+' : ''}${round.hands[player.id]}`}
                         </> : <span aria-label="Did not play">-</span>}
                       </span>
                     </td>

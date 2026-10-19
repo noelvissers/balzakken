@@ -55,6 +55,20 @@ describe('local game persistence', () => {
     expect(refreshed?.rounds).toHaveLength(1)
   })
 
+  it('restores six players and silently ignores oversized saves without deleting them', () => {
+    const storage = new MemoryStorage()
+    const players = Array.from({ length: 6 }, (_, index) => ({ id: `p${index}`, name: `Player ${index}` }))
+    const game = createGame(players, () => 0)
+    saveGame(game, storage)
+    expect(loadSavedGame(storage)).toEqual({ game, warning: null })
+
+    game.players.push({ id: 'extra', name: 'Extra', score: 0 })
+    saveGame(game, storage)
+    const saved = storage.getItem(STORAGE_KEY)
+    expect(loadSavedGame(storage)).toEqual({ game: null, warning: null })
+    expect(storage.getItem(STORAGE_KEY)).toBe(saved)
+  })
+
   it('does not reroll or recalculate a finished game on restore', () => {
     const game = submitRound(createGame(roster.slice(0, 2), () => 0), {
       callerId: 'b',
