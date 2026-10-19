@@ -242,7 +242,7 @@ function App() {
                           id={`hand-${player.id}`}
                           aria-label={`${player.name} hand value`}
                           type="number"
-                          inputMode="numeric"
+                          inputMode="decimal"
                           step="1"
                           value={handValues[player.id] ?? ''}
                           onChange={(event) => setHandValues((values) => ({ ...values, [player.id]: event.target.value }))}
