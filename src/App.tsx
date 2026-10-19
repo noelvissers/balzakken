@@ -139,9 +139,9 @@ function App() {
         <Header />
         {storageWarning && <p role="alert" className="notice">{storageWarning}</p>}
         <section className="welcome-panel" aria-labelledby="welcome-title">
-          <p className="eyebrow">OFFLINE SCOREKEEPER</p>
-          <h1 id="welcome-title">Card Game Scorekeeper</h1>
-          <p className="intro">Keep every hand, score, and dealer change in one place.</p>
+          <p className="eyebrow">Digitaal scoreboard voor</p>
+          <h1 id="welcome-title">BALZAKKEN!</h1>
+          <p className="intro">Bottom text.</p>
           <div className="welcome-actions">
             <button className="button button-primary" onClick={() => {
               setDraftPlayers(newDraft())
@@ -225,7 +225,7 @@ function App() {
 
   return (
     <main className="app-shell game-shell">
-      <Header title={game.status === 'active' ? `ROUND ${currentRound}` : undefined} onQuit={quitGame} />
+      <Header title={game.status === 'active' ? `Ronde ${currentRound}` : undefined} onQuit={quitGame} />
       {storageWarning && <p role="alert" className="notice">{storageWarning}</p>}
       {game.status === 'finished' ? (
         <section className="page-content results" aria-label="Game results">
@@ -240,7 +240,7 @@ function App() {
         <section className="page-content" aria-label="Game">
           <form onSubmit={nextRound} className="round-form" noValidate>
             <Scoreboard game={game} callerId={callerId} entry={
-              <tr aria-label={`Round ${currentRound} entry`}>
+              <tr className="scoreboard-entry-row" aria-label={`Round ${currentRound} entry`}>
                 {players.map((player) => (
                   <td key={player.id}>
                     {player.score >= 100 ? null : callerId ? (
@@ -260,12 +260,13 @@ function App() {
                         setFormError('')
                       }}>🃏</button>
                     )}
+                    <FittedText className="player-name">{player.name}</FittedText>
                   </td>
                 ))}
               </tr>
             } />
             {formError && <p role="alert" className="form-error">{formError}</p>}
-            {callerId && <button className="button button-primary next-round-button" type="submit" disabled={!canSubmitRound}>Next round<ArrowRight size={20} aria-hidden="true" /></button>}
+            {callerId && <button className="button button-primary next-round-button" type="submit" disabled={!canSubmitRound}>Volgende ronde<ArrowRight size={20} aria-hidden="true" /></button>}
           </form>
         </section>
       )}
@@ -281,9 +282,9 @@ function App() {
 function Header({ title, onQuit }: { title?: string; onQuit?: () => void }) {
   return (
     <header className="app-header">
-      <span className="header-brand"><span className="mark" aria-hidden="true">♠</span><span>Table Score</span></span>
+      <span className="header-brand"><span className="mark" aria-hidden="true">♠</span><span>BALZAKKEN!</span></span>
       {title && <span className="header-title">{title}</span>}
-      {onQuit && <button className="button button-subtle header-quit" onClick={onQuit}>Quit</button>}
+      {onQuit && <button className="button button-subtle header-quit" onClick={onQuit}>Stop</button>}
     </header>
   )
 }
@@ -334,23 +335,36 @@ function FittedText({ children, className }: { children: ReactNode; className: s
 
 function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: string; entry?: ReactNode }) {
   const { players, dealerId, rounds } = game
-  const playerTiles = (visible: boolean) => players.map((player) => (
-    <th scope="col" key={player.id} className={player.score >= 100 ? 'is-eliminated' : undefined}>
-      {visible ? <FittedText className="player-name">{player.name}</FittedText> : <span className="player-name">{player.name}</span>}
-      <span className="player-tags">
-        {player.id === dealerId && <span className="dealer-tag">Dealer</span>}
-        {player.id === callerId && <span className="win-tag">WIN</span>}
-        {game.status === 'finished' && player.id === game.winnerId && <span className="status-winner">Winner</span>}
-      </span>
-      {visible ? <FittedText className="player-total">{player.score >= 100 ? <span role="img" aria-label="Eliminated">💀</span> : player.score}</FittedText> : <span className="player-total">{player.score >= 100 ? <span role="img" aria-label="Eliminated">💀</span> : <><span className="sr-only">Total score: </span>{player.score}</>}</span>}
-    </th>
-  ))
+  const playerTiles = (visible: boolean) => players.map((player) => {
+    const isWinner = game.status === 'finished' && player.id === game.winnerId
+    return (
+      <th scope="col" key={player.id} className={player.score >= 100 ? 'is-eliminated' : undefined}>
+        {visible ? <FittedText className="player-name">{player.name}</FittedText> : <span className="player-name">{player.name}</span>}
+        <span className="player-tags">
+          {player.id === dealerId && <span className="dealer-tag">Dealer</span>}
+          {player.id === callerId && <span className="win-tag">BALZAK!</span>}
+          {isWinner && <span className="status-winner">Winner</span>}
+        </span>
+        {isWinner ? (
+          <span className="player-total" role="img" aria-label="Winner">👑</span>
+        ) : visible ? (
+          <FittedText className="player-total">{player.score >= 100 ? <span role="img" aria-label="Eliminated">💀</span> : player.score}</FittedText>
+        ) : (
+          <span className="player-total">{player.score >= 100 ? <span role="img" aria-label="Eliminated">💀</span> : <><span className="sr-only">Total score: </span>{player.score}</>}</span>
+        )}
+      </th>
+    )
+  })
   return (
     <div className="scoreboard-region">
       <div className="scoreboard-heading" aria-hidden="true">
         <table className="scoreboard">
           <thead><tr>{playerTiles(true)}</tr></thead>
         </table>
+        <svg className="scoreboard-frame" viewBox="0 0 1000 200" preserveAspectRatio="none" aria-hidden="true">
+          <path className="scoreboard-frame-main" d="M 0 200 C -3 183 3 166 0 149 S -2 119 1 101 S -3 67 0 49 S 2 27 0 12 Q 0 0 12 0 C 44 -3 77 3 110 0 S 175 -2 210 1 S 277 -3 310 0 S 375 2 410 -1 S 477 3 510 0 S 575 -2 610 1 S 677 -3 710 0 S 775 2 810 -1 S 877 3 910 0 S 965 -2 988 0 Q 1000 0 1000 12 C 997 29 1003 47 1000 65 S 998 98 1001 116 S 997 149 1000 167 S 1002 188 1000 200" />
+          <path className="scoreboard-frame-main" d="M 0 200 C 35 198 65 202 100 200 S 165 198 200 200 S 265 202 300 200 S 365 198 400 200 S 465 202 500 200 S 565 198 600 200 S 665 202 700 200 S 765 198 800 200 S 865 202 900 200 S 965 198 1000 200" />
+        </svg>
       </div>
       <div className="table-wrap scoreboard-history">
         <table aria-label="Scoreboard" className="scoreboard">
@@ -388,6 +402,9 @@ function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: str
             {entry}
           </tbody>
         </table>
+        <svg className="scoreboard-frame scoreboard-history-frame" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
+          <path className="scoreboard-frame-main" d="M 0 0 C -3 35 3 67 0 100 S -2 166 1 200 S -3 266 0 300 S 2 366 -1 400 S 3 466 0 500 S -2 566 1 600 S -3 666 0 700 S 2 766 -1 800 S 3 866 0 900 S -2 949 0 975 Q 0 1000 24 1000 C 55 997 78 1003 110 1000 S 176 998 210 1001 S 276 997 310 1000 S 376 1002 410 999 S 476 1003 510 1000 S 576 998 610 1001 S 676 997 710 1000 S 776 1002 810 999 S 876 1003 910 1000 S 953 998 976 1000 Q 1000 1000 1000 975 C 997 949 1003 924 1000 900 S 998 834 1001 800 S 997 734 1000 700 S 1002 634 999 600 S 1003 534 1000 500 S 998 434 1001 400 S 997 334 1000 300 S 1002 234 999 200 S 1003 134 1000 100 S 998 35 1000 0" />
+        </svg>
       </div>
     </div>
   )
@@ -395,7 +412,7 @@ function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: str
 
 function ScoreChart({ game }: { game: GameState }) {
   const first = game.rounds[0]?.before.players ?? game.players
-  const x = (index: number) => 56 + index * (374 / Math.max(1, game.rounds.length))
+  const x = (index: number) => 56 + index * (444 / Math.max(1, game.rounds.length))
   const y = (score: number) => 202 - (Math.min(100, score) / 100) * 170
   const series = first.map((player, index) => {
     const elimination = game.rounds.findIndex((round) => round.eliminatedIds.includes(player.id))
@@ -405,7 +422,7 @@ function ScoreChart({ game }: { game: GameState }) {
     const endY = y(scores[scores.length - 1])
     return {
       player,
-      color: ['#187c68', '#c45b35', '#3f6ea8', '#9b7627', '#7658a5', '#4b7d3c'][index % 6],
+      color: ['#ff206e', '#49416d', '#41ead4', '#533745', '#ffbf81'][index % 5],
       scores,
       eliminated: elimination >= 0,
       endX,
@@ -426,7 +443,7 @@ function ScoreChart({ game }: { game: GameState }) {
       <svg viewBox="0 0 600 246" role="img" aria-label="Player scores after each round">
         {[0, 50, 100].map((tick) => (
           <g key={tick}>
-            <line x1="50" x2="430" y1={y(tick)} y2={y(tick)} className="chart-grid" />
+            <line x1="50" x2="500" y1={y(tick)} y2={y(tick)} className="chart-grid" />
             <text x="40" y={y(tick) + 4} textAnchor="end" className="chart-label">{tick}</text>
           </g>
         ))}
@@ -459,7 +476,7 @@ function ScoreChart({ game }: { game: GameState }) {
             ) : (
               <circle cx={line.endX} cy={line.endY} r="4" fill={line.color} />
             )}
-            <ChartName name={line.player.name} x={line.endX + 20} y={line.labelY} color={line.color} />
+            <ChartName name={line.player.name} x={line.endX + 20} y={line.labelY} />
           </g>
         ))}
       </svg>
@@ -467,22 +484,29 @@ function ScoreChart({ game }: { game: GameState }) {
   )
 }
 
-function ChartName({ name, x, y, color }: { name: string; x: number; y: number; color: string }) {
+function ChartName({ name, x, y }: { name: string; x: number; y: number }) {
   const textRef = useRef<SVGTextElement>(null)
 
   useLayoutEffect(() => {
     const text = textRef.current
     if (!text || typeof text.getComputedTextLength !== 'function') return
-    text.style.fontSize = ''
-    const natural = text.getComputedTextLength()
-    const available = 592 - x
-    if (natural > available) {
-      text.style.fontSize = `${14 * available / natural}px`
+    function fit() {
+      const currentText = textRef.current
+      if (!currentText) return
+      currentText.style.fontSize = ''
+      const natural = currentText.getComputedTextLength()
+      const available = 592 - x
+      const baseSize = Number.parseFloat(getComputedStyle(currentText).fontSize) || 16
+      if (available > 0 && natural > available) {
+        currentText.style.fontSize = `${Math.floor(baseSize * available / natural * 100) / 100}px`
+      }
     }
+    fit()
+    void document.fonts?.ready.then(fit)
   }, [name, x])
 
   return (
-    <text ref={textRef} x={x} y={y} dominantBaseline="central" fill={color} className="chart-name">
+    <text ref={textRef} x={x} y={y} dominantBaseline="central" fill="#000" className="chart-name">
       <title>{name}</title>
       {name}
     </text>

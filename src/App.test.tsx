@@ -42,15 +42,25 @@ describe('scorekeeper flows', () => {
     const user = userEvent.setup()
     const { container, unmount } = render(<App />)
     await user.click(screen.getByRole('button', { name: 'Resume Game' }))
-    const text = container.querySelector<HTMLElement>('.scoreboard-heading .player-name-text')!
+    const headingNames = container.querySelectorAll<HTMLElement>('.scoreboard-heading .player-name-text')
+    const text = headingNames[0]
+    const entryNames = container.querySelectorAll<HTMLElement>('.scoreboard-entry-row .player-name-text')
     expect(text.textContent).toBe(name)
+    expect(Array.from(entryNames, (entryName) => entryName.textContent)).toEqual([name, 'Ada'])
+    expect(Array.from(entryNames, (entryName) => entryName.style.fontSize)).toEqual([
+      ...Array.from(headingNames, (headingName) => headingName.style.fontSize),
+    ])
+    const entryCells = container.querySelectorAll('.scoreboard-entry-row td')
+    expect(entryCells[0].lastElementChild).toHaveClass('player-name')
+    expect(container.querySelector('.scoreboard-name-row')).toBeNull()
     expect(Number.parseFloat(text.style.fontSize)).toBeCloseTo(3.97)
-    expect(resizeCallbacks).toHaveLength(4)
+    expect(resizeCallbacks).toHaveLength(6)
     expect(container.querySelector('.sr-only .player-name-text')).toBeNull()
 
     availableWidth = 160
     act(() => resizeCallbacks.forEach((callback) => callback()))
     expect(Number.parseFloat(text.style.fontSize)).toBeCloseTo(7.97)
+    expect(entryNames[0].style.fontSize).toBe(text.style.fontSize)
     availableWidth = 500
     act(() => window.dispatchEvent(new Event('resize')))
     expect(text.style.fontSize).toBe('')
@@ -58,7 +68,7 @@ describe('scorekeeper flows', () => {
     act(() => resizeCallbacks.forEach((callback) => callback()))
     expect(text.style.fontSize).toBe('')
     unmount()
-    expect(disconnect).toHaveBeenCalledTimes(4)
+    expect(disconnect).toHaveBeenCalledTimes(6)
   })
 
   it('shrinks score lines including adjustments and hands, then restores them when space returns', async () => {
@@ -386,7 +396,10 @@ describe('scorekeeper flows', () => {
     const user = userEvent.setup()
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Resume Game' }))
-    expect(within(screen.getByRole('columnheader', { name: /Ada/ })).getByText('Winner')).toHaveClass('status-winner')
+    const winnerCard = within(screen.getByRole('columnheader', { name: /Ada/ }))
+    expect(winnerCard.getByText('Winner')).toHaveClass('status-winner')
+    expect(winnerCard.getByRole('img', { name: 'Winner' })).toHaveTextContent('👑')
+    expect(winnerCard.queryByText('1')).not.toBeInTheDocument()
     expect(within(screen.getByRole('columnheader', { name: /Bert/ })).getByRole('img', { name: 'Eliminated' })).toHaveTextContent('💀')
     expect(screen.queryByText('Game over')).not.toBeInTheDocument()
     expect(within(screen.getByRole('table', { name: 'Scoreboard' })).getAllByText('Winner')).toHaveLength(1)
@@ -419,6 +432,23 @@ describe('scorekeeper flows', () => {
     expect(screen.queryByRole('button', { name: 'Resume Game' })).not.toBeInTheDocument()
   })
 
+  it('replaces the winner score with a crown and styles the winner tag', async () => {
+    const initial = createGame([{ id: 'ada', name: 'Ada' }, { id: 'bert', name: 'Bert' }], () => 0)
+    const game = submitRound({
+      ...initial,
+      players: initial.players.map((player) => ({ ...player, score: player.id === 'bert' ? 75 : 0 })),
+    }, { callerId: 'bert', hands: { ada: 1, bert: 6 } })
+    saveGame(game)
+
+    render(<App />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Resume Game' }))
+
+    const winnerCard = within(screen.getByRole('columnheader', { name: /Ada/ }))
+    expect(winnerCard.getByText('Winner')).toHaveClass('status-winner')
+    expect(winnerCard.getByRole('img', { name: 'Winner' })).toHaveTextContent('👑')
+    expect(winnerCard.queryByText('1')).not.toBeInTheDocument()
+  })
+
   it('caps graph scores at 100 and ends eliminated lines at their last played round', async () => {
     const initial = createGame([
       { id: 'ada', name: 'Ada' }, { id: 'bert', name: 'Bert' }, { id: 'cody', name: 'Cody' },
@@ -429,12 +459,12 @@ describe('scorekeeper flows', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Resume Game' }))
     const chart = screen.getByRole('img', { name: 'Player scores after each round' })
     const lines = [...chart.querySelectorAll('polyline')].map((line) => line.getAttribute('points')!.split(' '))
-    expect(lines[0]).toEqual(['56,202', '243,202', '430,202'])
-    expect(lines[1]).toEqual(['56,202', '243,32'])
+    expect(lines[0]).toEqual(['56,202', '278,202', '500,202'])
+    expect(lines[1]).toEqual(['56,202', '278,32'])
     expect(lines[2]).toHaveLength(3)
     expect(Number(lines[2][1].split(',')[1])).toBeCloseTo(72.8)
-    expect(lines[2][2]).toBe('430,32')
-    for (const [id, endX] of [['bert', '243'], ['cody', '430']]) {
+    expect(lines[2][2]).toBe('500,32')
+    for (const [id, endX] of [['bert', '278'], ['cody', '500']]) {
       const marker = chart.querySelector(`[data-player-id="${id}"] .chart-skull`)!
       expect(marker).toHaveTextContent('💀')
       expect(marker).toHaveAttribute('x', endX)
@@ -443,7 +473,7 @@ describe('scorekeeper flows', () => {
     expect(chart.querySelector('[data-player-id="ada"] .chart-skull')).toBeNull()
     const trophy = within(chart).getByRole('img', { name: 'Ada winner' })
     expect(trophy).toHaveTextContent('👑')
-    expect(trophy).toHaveAttribute('x', '430')
+    expect(trophy).toHaveAttribute('x', '500')
     expect(trophy).toHaveAttribute('y', '202')
     const names = [...chart.querySelectorAll('.chart-name')]
     expect(names.map((name) => name.lastChild?.textContent)).toEqual(['Ada', 'Bert', 'Cody'])
@@ -655,12 +685,12 @@ describe('scorekeeper flows', () => {
     const history = within(table.getByRole('row', { name: 'Round 2' })).getAllByRole('cell')
     expect(history).toHaveLength(3)
     expect(history[1]).toBeEmptyDOMElement()
-    expect(within(table.getByRole('row', { name: 'Round 3 entry' })).getAllByRole('cell')[1]).toBeEmptyDOMElement()
+    expect(within(table.getByRole('row', { name: 'Round 3 entry' })).getAllByRole('cell')[1].querySelector('.player-name')).toHaveTextContent('Bert')
     expect(screen.queryByRole('button', { name: 'Bert calls WIN' })).not.toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
     expect(screen.getAllByRole('textbox', { name: /hand value/ })).toHaveLength(2)
     expect(screen.queryByLabelText('Bert hand value')).not.toBeInTheDocument()
     expect(within(table.getByRole('row', { name: 'Round 3 entry' })).getAllByRole('cell')).toHaveLength(3)
-    expect(within(table.getByRole('row', { name: 'Round 3 entry' })).getAllByRole('cell')[1]).toBeEmptyDOMElement()
+    expect(within(table.getByRole('row', { name: 'Round 3 entry' })).getAllByRole('cell')[1].querySelector('.player-name')).toHaveTextContent('Bert')
   })
 })

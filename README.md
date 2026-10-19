@@ -44,3 +44,12 @@ Clearing browser site data, using a private browsing session, or removing the si
 The GitHub Actions workflow runs tests, type checking, and a production build, then deploys `dist/` to Pages. It derives the Vite base path from `GITHUB_REPOSITORY`, including project sites such as `https://username.github.io/repository-name/`. Set `VITE_BASE_PATH` only when a custom path is needed.
 
 To enable deployment, open the repository’s **Settings → Pages** and set **Build and deployment → Source** to **GitHub Actions**. Push to `main` or `master`, or start the workflow manually from the Actions tab. No secrets are required.
+
+## TODO
+
+1. Use font https://www.1001fonts.com/mochibop-font.html for all text
+1. Use non transparent shadows for buttons/cards
+1. Figure out a good color scheme
+1. Change background and icons
+1. Change text and titles (to Dutch)
+1. Show name under input box so its clear who's who when typing in score
