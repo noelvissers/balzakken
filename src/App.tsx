@@ -35,8 +35,6 @@ function App() {
   const [handValues, setHandValues] = useState<Record<string, string>>({})
   const [activeHandId, setActiveHandId] = useState('')
   const [formError, setFormError] = useState('')
-  const roundFormRef = useRef<HTMLFormElement>(null)
-  const handInputRefs = useRef(new Map<string, HTMLInputElement>())
   const submissionLock = useRef(false)
 
   function updateActiveHand(update: (value: string) => string) {
@@ -45,19 +43,6 @@ function App() {
       ...values,
       [activeHandId]: update(values[activeHandId] ?? ''),
     }))
-  }
-
-  function advanceHand() {
-    const handPlayers = game?.players.filter((player) => player.score < 100) ?? []
-    const activeIndex = handPlayers.findIndex((player) => player.id === activeHandId)
-    const nextPlayer = handPlayers[activeIndex + 1]
-    if (nextPlayer) {
-      handInputRefs.current.get(nextPlayer.id)?.focus()
-    } else if (activeIndex === handPlayers.length - 1) {
-      roundFormRef.current?.requestSubmit()
-    } else if (handPlayers[0]) {
-      handInputRefs.current.get(handPlayers[0].id)?.focus()
-    }
   }
 
   function commit(nextGame: GameState) {
@@ -241,8 +226,6 @@ function App() {
 
   const players = game.players
   const handPlayers = players.filter((player) => player.score < 100)
-  const activeHandIndex = handPlayers.findIndex((player) => player.id === activeHandId)
-  const isLastHand = activeHandIndex === handPlayers.length - 1
   const currentRound = game.roundNumber
   const undoLabel = callerId ? 'Change win caller' : 'Undo Last Round'
   const canUndo = Boolean(callerId || game.rounds.length)
@@ -262,7 +245,7 @@ function App() {
         </section>
       ) : (
         <section className="page-content" aria-label="Game">
-          <form ref={roundFormRef} onSubmit={nextRound} className="round-form" noValidate>
+          <form onSubmit={nextRound} className="round-form" noValidate>
             <Scoreboard game={game} callerId={callerId} entry={
               <tr aria-label={`Round ${currentRound} entry`}>
                 {players.map((player) => (
@@ -273,10 +256,6 @@ function App() {
                         <input
                           id={`hand-${player.id}`}
                           aria-label={`${player.name} hand value`}
-                          ref={(input) => {
-                            if (input) handInputRefs.current.set(player.id, input)
-                            else handInputRefs.current.delete(player.id)
-                          }}
                           type="text"
                           inputMode="none"
                           value={handValues[player.id] ?? ''}
@@ -303,7 +282,6 @@ function App() {
                 <button className="mobile-keypad-key" type="button" aria-label="Toggle negative sign" onClick={() => updateActiveHand((value) => value.startsWith('-') ? value.slice(1) : `-${value}`)}>-</button>
                 <button className="mobile-keypad-key" type="button" aria-label="Enter digit 0" onClick={() => updateActiveHand((value) => `${value}0`)}>0</button>
                 <button className="mobile-keypad-key" type="button" aria-label="Delete last digit" onClick={() => updateActiveHand((value) => value.slice(0, -1))}>⌫</button>
-                <button className="mobile-keypad-next" type="button" aria-label={isLastHand ? 'Enter and submit round' : 'Next hand value'} onClick={advanceHand}>{isLastHand ? 'Enter' : 'Next'}</button>
               </div>
             )}
             {formError && <p role="alert" className="form-error">{formError}</p>}

@@ -289,9 +289,9 @@ tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
 .chart-legend span { width: 12px; height: 12px; border-radius: 2px; }
 
 @media (max-width: 560px) {
-  .game-shell.has-mobile-keypad { padding-bottom: calc(390px + env(safe-area-inset-bottom, 0px)); }
+  .game-shell.has-mobile-keypad { padding-bottom: calc(334px + env(safe-area-inset-bottom, 0px)); }
   .game-shell.has-mobile-keypad .undo-button,
-  .game-shell.has-mobile-keypad .next-round-button { bottom: calc(310px + env(safe-area-inset-bottom, 0px)); }
+  .game-shell.has-mobile-keypad .next-round-button { bottom: calc(254px + env(safe-area-inset-bottom, 0px)); }
   .mobile-keypad {
     position: fixed;
     right: 0;
@@ -306,7 +306,7 @@ tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
     background: #fff;
     box-shadow: 0 -4px 18px #202a2818;
   }
-  .mobile-keypad-key, .mobile-keypad-next {
+  .mobile-keypad-key {
     min-width: 0;
     min-height: 48px;
     border: 1px solid #aab5ae;
@@ -318,14 +318,6 @@ tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
     touch-action: manipulation;
   }
   .mobile-keypad-key:hover { background: #eaf0eb; }
-  .mobile-keypad-next {
-    grid-column: 1 / -1;
-    border-color: var(--green);
-    background: var(--green);
-    color: #fff;
-    font-size: 16px;
-  }
-  .mobile-keypad-next:hover { background: var(--green-dark); }
   .app-header { padding-inline: 16px; }
   .header-brand { gap: 6px; font-size: 12px; line-height: 1.2; }
   .header-brand .mark { flex-shrink: 0; width: 24px; height: 24px; }

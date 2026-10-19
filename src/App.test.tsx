@@ -116,7 +116,7 @@ describe('scorekeeper flows', () => {
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds).toHaveLength(1)
   })
 
-  it('enters signed values with the keypad and advances focus through the hand fields', async () => {
+  it('enters signed values with the keypad and supports direct field selection', async () => {
     const user = userEvent.setup()
     render(<App />)
     await createTwoPlayerGame(user)
@@ -132,11 +132,11 @@ describe('scorekeeper flows', () => {
     await user.click(screen.getByRole('button', { name: 'Delete last digit' }))
     expect(ada).toHaveValue('-4')
 
-    await user.click(screen.getByRole('button', { name: 'Next hand value' }))
+    await user.click(screen.getByLabelText('Bert hand value'))
     const bert = screen.getByLabelText('Bert hand value')
     expect(document.activeElement).toBe(bert)
     await user.click(screen.getByRole('button', { name: 'Enter digit 2' }))
-    await user.click(screen.getByRole('button', { name: 'Enter and submit round' }))
+    await user.click(screen.getByRole('button', { name: 'Next round' }))
 
     expect(screen.getByText('ROUND 2')).toBeInTheDocument()
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds[0].hands).toEqual({
@@ -145,7 +145,7 @@ describe('scorekeeper flows', () => {
     })
   })
 
-  it('skips eliminated players and validates when Enter submits from the final field', async () => {
+  it('omits keypad navigation and validates values through the standard round action', async () => {
     const initial = createGame([
       { id: 'ada', name: 'Ada' }, { id: 'bert', name: 'Bert' }, { id: 'cody', name: 'Cody' },
     ], () => 0)
@@ -160,19 +160,16 @@ describe('scorekeeper flows', () => {
     await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
 
     expect(screen.queryByLabelText('Bert hand value')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Next hand value' }))
-    const cody = screen.getByLabelText('Cody hand value')
-    expect(document.activeElement).toBe(cody)
-    await user.click(screen.getByRole('button', { name: 'Enter digit 3' }))
-    await user.click(screen.getByRole('button', { name: 'Enter and submit round' }))
+    expect(screen.queryByRole('button', { name: /Next hand value|Enter and submit round/ })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Next round' }))
     expect(screen.getByRole('alert')).toHaveTextContent('safe whole number for Ada')
     expect(screen.getByText('ROUND 3')).toBeInTheDocument()
 
-    await user.click(screen.getByLabelText('Ada hand value'))
     await user.click(screen.getByRole('button', { name: 'Enter digit 1' }))
     await user.click(screen.getByRole('button', { name: 'Toggle negative sign' }))
-    await user.click(screen.getByRole('button', { name: 'Next hand value' }))
-    await user.click(screen.getByRole('button', { name: 'Enter and submit round' }))
+    await user.click(screen.getByLabelText('Cody hand value'))
+    await user.click(screen.getByRole('button', { name: 'Enter digit 3' }))
+    await user.click(screen.getByRole('button', { name: 'Next round' }))
 
     expect(screen.getByText('ROUND 4')).toBeInTheDocument()
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds.at(-1).hands).toEqual({ ada: -1, cody: 3 })
