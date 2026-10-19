@@ -287,9 +287,8 @@ tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
 .chart-wrap svg { display: block; width: 100%; height: auto; overflow: visible; }
 .chart-grid { stroke: #dbe1dc; stroke-width: 1; }
 .chart-label { fill: #68736d; font-size: 12px; }
-.chart-legend { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 8px 0 0; padding: 0; list-style: none; }
-.chart-legend li { display: flex; align-items: center; gap: 7px; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
-.chart-legend span { flex-shrink: 0; width: 12px; height: 12px; border-radius: 2px; }
+.chart-name { font-size: 14px; font-weight: 650; }
+.chart-skull, .chart-trophy { font-size: 18px; }
 
 @media (max-width: 560px) {
   .app-header { padding-inline: 16px; }

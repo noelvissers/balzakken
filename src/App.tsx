@@ -395,21 +395,38 @@ function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: str
 
 function ScoreChart({ game }: { game: GameState }) {
   const first = game.rounds[0]?.before.players ?? game.players
-  const series = first.map((player, index) => ({
-    player,
-    color: ['#187c68', '#c45b35', '#3f6ea8', '#9b7627', '#7658a5', '#4b7d3c'][index % 6],
-    scores: [player.score, ...game.rounds.map((round) => round.scoresAfter[player.id])],
-  }))
-  const maximum = Math.max(100, ...series.flatMap((line) => line.scores))
-  const x = (index: number) => 56 + index * (520 / Math.max(1, game.rounds.length))
-  const y = (score: number) => 202 - (score / maximum) * 170
+  const x = (index: number) => 56 + index * (374 / Math.max(1, game.rounds.length))
+  const y = (score: number) => 202 - (Math.min(100, score) / 100) * 170
+  const series = first.map((player, index) => {
+    const elimination = game.rounds.findIndex((round) => round.eliminatedIds.includes(player.id))
+    const rounds = elimination < 0 ? game.rounds : game.rounds.slice(0, elimination + 1)
+    const scores = [player.score, ...rounds.map((round) => round.scoresAfter[player.id])]
+    const endX = x(scores.length - 1)
+    const endY = y(scores[scores.length - 1])
+    return {
+      player,
+      color: ['#187c68', '#c45b35', '#3f6ea8', '#9b7627', '#7658a5', '#4b7d3c'][index % 6],
+      scores,
+      eliminated: elimination >= 0,
+      endX,
+      endY,
+      labelY: endY,
+    }
+  })
+  const labels = [...series].sort((left, right) => left.endY - right.endY)
+  labels.forEach((line, index) => {
+    line.labelY = Math.max(line.endY, index === 0 ? 32 : labels[index - 1].labelY + 22)
+  })
+  for (let index = labels.length - 1; index >= 0; index--) {
+    labels[index].labelY = Math.min(labels[index].labelY, index === labels.length - 1 ? 202 : labels[index + 1].labelY - 22)
+  }
 
   return (
     <div className="chart-wrap">
       <svg viewBox="0 0 600 246" role="img" aria-label="Player scores after each round">
         {[0, 50, 100].map((tick) => (
           <g key={tick}>
-            <line x1="50" x2="584" y1={y(tick)} y2={y(tick)} className="chart-grid" />
+            <line x1="50" x2="430" y1={y(tick)} y2={y(tick)} className="chart-grid" />
             <text x="40" y={y(tick) + 4} textAnchor="end" className="chart-label">{tick}</text>
           </g>
         ))}
@@ -427,11 +444,48 @@ function ScoreChart({ game }: { game: GameState }) {
             strokeLinecap="round"
           />
         ))}
+        {series.map((line) => (
+          <g key={line.player.id} data-player-id={line.player.id}>
+            <path
+              d={`M${line.endX + 8},${line.endY} L${line.endX + 14},${line.labelY} H${line.endX + 18}`}
+              fill="none"
+              stroke={line.color}
+              strokeWidth="1"
+            />
+            {line.eliminated ? (
+              <text x={line.endX} y={line.endY} textAnchor="middle" dominantBaseline="central" className="chart-skull" role="img" aria-label={`${line.player.name} eliminated`}>💀</text>
+            ) : line.player.id === game.winnerId ? (
+              <text x={line.endX} y={line.endY} textAnchor="middle" dominantBaseline="central" className="chart-trophy" role="img" aria-label={`${line.player.name} winner`}>🏆</text>
+            ) : (
+              <circle cx={line.endX} cy={line.endY} r="4" fill={line.color} />
+            )}
+            <ChartName name={line.player.name} x={line.endX + 20} y={line.labelY} color={line.color} />
+          </g>
+        ))}
       </svg>
-      <ul className="chart-legend">
-        {series.map((line) => <li key={line.player.id}><span style={{ backgroundColor: line.color }} />{line.player.name}</li>)}
-      </ul>
     </div>
+  )
+}
+
+function ChartName({ name, x, y, color }: { name: string; x: number; y: number; color: string }) {
+  const textRef = useRef<SVGTextElement>(null)
+
+  useLayoutEffect(() => {
+    const text = textRef.current
+    if (!text || typeof text.getComputedTextLength !== 'function') return
+    text.style.fontSize = ''
+    const natural = text.getComputedTextLength()
+    const available = 592 - x
+    if (natural > available) {
+      text.style.fontSize = `${14 * available / natural}px`
+    }
+  }, [name, x])
+
+  return (
+    <text ref={textRef} x={x} y={y} dominantBaseline="central" fill={color} className="chart-name">
+      <title>{name}</title>
+      {name}
+    </text>
   )
 }
 

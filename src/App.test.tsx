@@ -387,6 +387,67 @@ describe('scorekeeper flows', () => {
     expect(screen.queryByRole('button', { name: 'Resume Game' })).not.toBeInTheDocument()
   })
 
+  it('caps graph scores at 100 and ends eliminated lines at their last played round', async () => {
+    const initial = createGame([
+      { id: 'ada', name: 'Ada' }, { id: 'bert', name: 'Bert' }, { id: 'cody', name: 'Cody' },
+    ], () => 0)
+    const first = submitRound(initial, { callerId: 'ada', hands: { ada: 0, bert: 101, cody: 76 } }, () => 0)
+    saveGame(submitRound(first, { callerId: 'cody', hands: { ada: 0, cody: 6 } }, () => 0))
+    render(<App />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Resume Game' }))
+    const chart = screen.getByRole('img', { name: 'Player scores after each round' })
+    const lines = [...chart.querySelectorAll('polyline')].map((line) => line.getAttribute('points')!.split(' '))
+    expect(lines[0]).toEqual(['56,202', '243,202', '430,202'])
+    expect(lines[1]).toEqual(['56,202', '243,32'])
+    expect(lines[2]).toHaveLength(3)
+    expect(Number(lines[2][1].split(',')[1])).toBeCloseTo(72.8)
+    expect(lines[2][2]).toBe('430,32')
+    for (const [id, endX] of [['bert', '243'], ['cody', '430']]) {
+      const marker = chart.querySelector(`[data-player-id="${id}"] .chart-skull`)!
+      expect(marker).toHaveTextContent('💀')
+      expect(marker).toHaveAttribute('x', endX)
+      expect(marker).toHaveAttribute('y', '32')
+    }
+    expect(chart.querySelector('[data-player-id="ada"] .chart-skull')).toBeNull()
+    const trophy = within(chart).getByRole('img', { name: 'Ada winner' })
+    expect(trophy).toHaveTextContent('👑')
+    expect(trophy).toHaveAttribute('x', '430')
+    expect(trophy).toHaveAttribute('y', '202')
+    const names = [...chart.querySelectorAll('.chart-name')]
+    expect(names.map((name) => name.lastChild?.textContent)).toEqual(['Ada', 'Bert', 'Cody'])
+    const positions = names.map((name) => Number(name.getAttribute('y'))).sort((left, right) => left - right)
+    expect(positions.every((position, index) => index === 0 || position - positions[index - 1] >= 22)).toBe(true)
+  })
+
+  it.each([false, true])('separates six endpoint names for simultaneous eliminations (no winner: %s)', async (noWinner) => {
+    const name = 'Alexandria Catherine Montgomery Smith'
+    const initial = createGame(Array.from({ length: 6 }, (_, index) => ({ id: `player-${index}`, name })), () => 0)
+    const game = submitRound({
+      ...initial,
+      players: initial.players.map((player, index) => ({ ...player, score: noWinner ? (index === 0 ? 75 : 98) : 0 })),
+    }, {
+      callerId: 'player-0',
+      hands: Object.fromEntries(initial.players.map((player, index) => [player.id, noWinner ? 5 : (index === 0 ? 0 : 101)])),
+    }, () => 0)
+    saveGame(game)
+    render(<App />)
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Resume Game' }))
+    const chart = screen.getByRole('img', { name: 'Player scores after each round' })
+    expect(chart.querySelectorAll('.chart-skull')).toHaveLength(noWinner ? 6 : 5)
+    expect(chart.querySelectorAll('.chart-trophy')).toHaveLength(noWinner ? 0 : 1)
+    const positions = [...chart.querySelectorAll('.chart-name')].map((label) => Number(label.getAttribute('y'))).sort((left, right) => left - right)
+    expect(positions).toHaveLength(6)
+    expect(positions[0]).toBeGreaterThanOrEqual(32)
+    expect(positions[5]).toBeLessThanOrEqual(202)
+    expect(positions.every((position, index) => index === 0 || position - positions[index - 1] >= 22)).toBe(true)
+    for (const player of game.players) {
+      const endpoint = chart.querySelector(`[data-player-id="${player.id}"]`)!
+      expect(endpoint.querySelector('.chart-name')?.lastChild?.textContent).toBe(name)
+      expect(endpoint.querySelector('.chart-skull') !== null).toBe(player.score >= 100)
+    }
+    expect(game.winnerId).toBe(noWinner ? null : 'player-0')
+  })
+
   it('can undo the terminal round after restoring the finished game', async () => {
     const initial = createGame([
       { id: 'ada', name: 'Ada' },
