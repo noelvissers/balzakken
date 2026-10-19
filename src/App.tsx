@@ -1,4 +1,5 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { ArrowLeft, ArrowRight, Minus, Plus } from 'lucide-react'
 import {
   activePlayers,
   createGame,
@@ -6,7 +7,6 @@ import {
   undoLastRound,
   type GameState,
   type NewRoundInput,
-  type Player,
 } from './domain/game'
 import { clearSavedGame, loadSavedGame, saveGame } from './persistence/storage'
 import './App.css'
@@ -34,7 +34,6 @@ function App() {
   const [callerId, setCallerId] = useState('')
   const [handValues, setHandValues] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState('')
-  const [preview, setPreview] = useState<GameState | null>(null)
   const submissionLock = useRef(false)
 
   function commit(nextGame: GameState) {
@@ -54,7 +53,6 @@ function App() {
       setFormError('')
       setCallerId('')
       setHandValues({})
-      setPreview(null)
       commit(nextGame)
       setScreen('game')
     } catch (error) {
@@ -62,7 +60,7 @@ function App() {
     }
   }
 
-  function previewRound(event: FormEvent<HTMLFormElement>) {
+  function nextRound(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!game || submissionLock.current) return
     const participants = activePlayers(game)
@@ -81,36 +79,35 @@ function App() {
     }
 
     try {
+      submissionLock.current = true
       const input: NewRoundInput = { callerId, hands }
-      setPreview(submitRound(game, input))
+      commit(submitRound(game, input))
+      setHandValues({})
+      setCallerId('')
       setFormError('')
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'The round could not be calculated.')
+    } finally {
+      submissionLock.current = false
     }
   }
 
-  function confirmRound() {
-    if (!preview || submissionLock.current) return
-    submissionLock.current = true
-    commit(preview)
-    setPreview(null)
-    setHandValues({})
-    setCallerId('')
-    submissionLock.current = false
-  }
-
-  function cancelPreview() {
-    setPreview(null)
+  function undoRound() {
+    const round = game?.rounds.at(-1)
+    if (!game || !round) return
+    commit(undoLastRound(game))
+    setHandValues(Object.fromEntries(Object.entries(round.hands).map(([id, value]) => [id, String(value)])))
+    setCallerId(round.callerId)
     setFormError('')
   }
 
-  function undoRound() {
-    if (!game || game.rounds.length === 0) return
-    if (!window.confirm('Undo the most recent round? The scores and dealer will be restored.')) return
-    commit(undoLastRound(game))
-    setPreview(null)
-    setHandValues({})
-    setCallerId('')
+  function undoAction() {
+    if (callerId) {
+      setCallerId('')
+      setFormError('')
+    } else {
+      undoRound()
+    }
   }
 
   function quitGame() {
@@ -119,7 +116,6 @@ function App() {
     const cleared = clearSavedGame()
     setStorageWarning(cleared.warning)
     setGame(null)
-    setPreview(null)
     setScreen('welcome')
   }
 
@@ -129,7 +125,6 @@ function App() {
     commit(rematch)
     setCallerId('')
     setHandValues({})
-    setPreview(null)
   }
 
   if (screen === 'welcome') {
@@ -156,14 +151,12 @@ function App() {
 
   if (screen === 'setup') {
     return (
-      <main className="app-shell">
+      <main className="app-shell game-shell">
         <Header />
         <section className="page-content" aria-labelledby="setup-title">
-          <button className="text-button" onClick={() => setScreen('welcome')}>Back</button>
           <h1 id="setup-title">New game</h1>
           <form onSubmit={startNewGame}>
-            <fieldset className="player-editor">
-              <legend>Players</legend>
+            <div className="player-editor">
               {draftPlayers.map((player, index) => (
                 <div className="player-edit-row" key={player.id}>
                   <label htmlFor={`player-${player.id}`}>Player {index + 1}</label>
@@ -177,24 +170,30 @@ function App() {
                     ))}
                   />
                   <button
-                    className="button button-subtle"
+                    className="button player-control"
                     type="button"
                     aria-label={`Remove ${player.name || `player ${index + 1}`}`}
+                    title={`Remove ${player.name || `player ${index + 1}`}`}
                     disabled={draftPlayers.length <= 2}
                     onClick={() => setDraftPlayers((players) => players.filter((entry) => entry.id !== player.id))}
-                  >Remove</button>
+                  ><Minus size={20} aria-hidden="true" /></button>
                 </div>
               ))}
-              <button className="button" type="button" onClick={() => setDraftPlayers((players) => [...players, { id: makeId(), name: '' }])}>
-                Add player
-              </button>
-            </fieldset>
+              <div className="player-add-row">
+                <button className="button player-control" type="button" aria-label="Add player" title="Add player" onClick={() => setDraftPlayers((players) => [...players, { id: makeId(), name: '' }])}>
+                  <Plus size={20} aria-hidden="true" />
+                </button>
+              </div>
+            </div>
             {formError && <p className="form-error" role="alert">{formError}</p>}
-            <button className="button button-primary" type="submit" disabled={draftPlayers.length < 2 || draftPlayers.some((player) => !player.name.trim())}>
-              Start game
+            <button className="button button-primary next-round-button" type="submit" disabled={draftPlayers.length < 2 || draftPlayers.some((player) => !player.name.trim())}>
+              Start game<ArrowRight size={20} aria-hidden="true" />
             </button>
           </form>
         </section>
+        <button className="button undo-button" type="button" aria-label="Back" title="Back" onClick={() => setScreen('welcome')}>
+          <ArrowLeft size={22} aria-hidden="true" />
+        </button>
       </main>
     )
   }
@@ -212,153 +211,143 @@ function App() {
   }
 
   const players = game.players
-  const participants = activePlayers(game)
-  const latestRound = preview?.rounds.at(-1) ?? null
   const currentRound = game.roundNumber
+  const undoLabel = callerId ? 'Change win caller' : 'Undo Last Round'
+  const canUndo = Boolean(callerId || game.rounds.length)
 
   return (
-    <main className="app-shell">
-      <Header />
+    <main className="app-shell game-shell">
+      <Header title={game.status === 'active' ? `ROUND ${currentRound}` : undefined} onQuit={quitGame} />
       {storageWarning && <p role="alert" className="notice">{storageWarning}</p>}
       {game.status === 'finished' ? (
-        <section className="page-content results" aria-labelledby="results-title">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">GAME COMPLETE</p>
-              <h1 id="results-title">{game.winnerId ? `${players.find((player) => player.id === game.winnerId)?.name} wins` : 'No winner'}</h1>
-            </div>
-            <button className="button button-subtle" onClick={quitGame}>Quit Game</button>
-          </div>
-          <Scoreboard players={players} dealerId={null} />
-          {game.rounds.length > 0 && <button className="button button-subtle undo-button" onClick={undoRound}>Undo Last Round</button>}
+        <section className="page-content results" aria-label="Game results">
+          <Scoreboard game={game} />
           <section className="chart-section" aria-labelledby="chart-title">
             <h2 id="chart-title">Score progression</h2>
             <ScoreChart game={game} />
           </section>
-          <button className="button button-primary" onClick={playAgain}>Play Again</button>
+          <button className="button button-primary next-round-button" onClick={playAgain}>Play Again</button>
         </section>
       ) : (
-        <section className="page-content" aria-labelledby="game-title">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">ROUND {currentRound}</p>
-              <h1 id="game-title">Scoreboard</h1>
-            </div>
-            <button className="button button-subtle" onClick={quitGame}>Quit Game</button>
-          </div>
-          <Scoreboard players={players} dealerId={game.dealerId} />
-          {game.rounds.length > 0 && <button className="button button-subtle undo-button" onClick={undoRound}>Undo Last Round</button>}
-          <section className="round-section" aria-labelledby="round-title">
-            <h2 id="round-title">Enter round {currentRound}</h2>
-            {preview && latestRound ? (
-              <RoundConfirmation
-                game={preview}
-                round={latestRound}
-                players={players}
-                onConfirm={confirmRound}
-                onCancel={cancelPreview}
-              />
-            ) : (
-              <form onSubmit={previewRound} className="round-form">
-                <label htmlFor="caller">Player who called win</label>
-                <select id="caller" value={callerId} onChange={(event) => setCallerId(event.target.value)}>
-                  <option value="">Select a player</option>
-                  {participants.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}
-                </select>
-                <div className="hand-grid">
-                  {participants.map((player) => (
-                    <div className="hand-input" key={player.id}>
-                      <label htmlFor={`hand-${player.id}`}>{player.name} hand value</label>
-                      <input
-                        id={`hand-${player.id}`}
-                        type="number"
-                        inputMode="numeric"
-                        step="1"
-                        value={handValues[player.id] ?? ''}
-                        onChange={(event) => setHandValues((values) => ({ ...values, [player.id]: event.target.value }))}
-                      />
-                    </div>
-                  ))}
-                </div>
-                {formError && <p role="alert" className="form-error">{formError}</p>}
-                <button className="button button-primary" type="submit">Review round</button>
-              </form>
-            )}
-          </section>
+        <section className="page-content" aria-label="Game">
+          <form onSubmit={nextRound} className="round-form" noValidate>
+            <Scoreboard game={game} callerId={callerId} entry={
+              <tr aria-label={`Round ${currentRound} entry`}>
+                {players.map((player) => (
+                  <td key={player.id}>
+                    {player.score >= 100 ? <span aria-label="Eliminated">-</span> : callerId ? (
+                      <div className="hand-input">
+                        <label htmlFor={`hand-${player.id}`}>Hand value<span className="sr-only"> for {player.name}</span></label>
+                        <input
+                          id={`hand-${player.id}`}
+                          aria-label={`${player.name} hand value`}
+                          type="number"
+                          inputMode="numeric"
+                          step="1"
+                          value={handValues[player.id] ?? ''}
+                          onChange={(event) => setHandValues((values) => ({ ...values, [player.id]: event.target.value }))}
+                        />
+                      </div>
+                    ) : (
+                      <button className="button button-primary win-button" type="button" aria-label={`${player.name} calls WIN`} onClick={() => {
+                        setCallerId(player.id)
+                        setFormError('')
+                      }}>WIN</button>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            } />
+            {formError && <p role="alert" className="form-error">{formError}</p>}
+            {callerId && <button className="button button-primary next-round-button" type="submit">Next round<ArrowRight size={20} aria-hidden="true" /></button>}
+          </form>
         </section>
+      )}
+      {canUndo && (
+        <button className="button undo-button" type="button" onClick={undoAction} aria-label={undoLabel} title={undoLabel}>
+          <ArrowLeft size={22} aria-hidden="true" />
+        </button>
       )}
     </main>
   )
 }
 
-function Header() {
-  return <header className="app-header"><span className="mark" aria-hidden="true">♠</span><span>Table Score</span></header>
-}
-
-function Scoreboard({ players, dealerId }: { players: Player[]; dealerId: string | null }) {
+function Header({ title, onQuit }: { title?: string; onQuit?: () => void }) {
   return (
-    <div className="table-wrap">
-      <table aria-label="Scoreboard">
-        <thead><tr><th scope="col">Player</th><th scope="col">Score</th><th scope="col">Status</th></tr></thead>
-        <tbody>
-          {players.map((player) => {
-            const eliminated = player.score >= 100
-            return (
-              <tr key={player.id} className={eliminated ? 'is-eliminated' : undefined}>
-                <th scope="row">
-                  {player.name}
-                  {player.id === dealerId && <span className="dealer-tag">Dealer</span>}
-                </th>
-                <td>{player.score}</td>
-                <td>{eliminated ? <span className="status-eliminated">Game over</span> : 'Active'}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
+    <header className="app-header">
+      <span className="header-brand"><span className="mark" aria-hidden="true">♠</span><span>Table Score</span></span>
+      {title && <span className="header-title">{title}</span>}
+      {onQuit && <button className="button button-subtle header-quit" onClick={onQuit}>Quit Game</button>}
+    </header>
   )
 }
 
-function RoundConfirmation({
-  game,
-  round,
-  players,
-  onConfirm,
-  onCancel,
-}: {
-  game: GameState
-  round: GameState['rounds'][number]
-  players: Player[]
-  onConfirm: () => void
-  onCancel: () => void
-}) {
-  const byId = new Map(players.map((player) => [player.id, player.name]))
+function roundAdjustment(round: GameState['rounds'][number], playerId: string): 'penalty' | 'reduction' | undefined {
+  const callerHand = round.hands[round.callerId]
+  const callerPenalized = callerHand > 5 || Object.entries(round.hands).some(([id, hand]) => id !== round.callerId && hand <= callerHand)
+  if (playerId === round.callerId && callerPenalized) return 'penalty'
+  if (callerHand > 5) return undefined
+  const before = round.before.players.find((player) => player.id === playerId)
+  if (before && Math.max(0, before.score + round.hands[playerId]) - round.scoresAfter[playerId] === 25) return 'reduction'
+  return undefined
+}
+
+function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: string; entry?: ReactNode }) {
+  const { players, dealerId, rounds } = game
+  const headingScroll = useRef<HTMLDivElement>(null)
+  const historyScroll = useRef<HTMLDivElement>(null)
+  const tableStyle = { minWidth: players.length * 136 }
+  const playerTiles = players.map((player) => (
+    <th scope="col" key={player.id} className={player.score >= 100 ? 'is-eliminated' : undefined}>
+      <span className="player-name">{player.name}</span>
+      <span className="player-total"><span className="sr-only">Total score: </span>{player.score}</span>
+      <span className="player-tags">
+        {player.id === dealerId && <span className="dealer-tag">Dealer</span>}
+        {player.id === callerId && <span className="win-tag">WIN</span>}
+        {player.score >= 100 && <span className="status-eliminated">Game over</span>}
+        {game.status === 'finished' && player.id === game.winnerId && <span className="status-winner">Winner</span>}
+      </span>
+    </th>
+  ))
   return (
-    <div className="confirmation" aria-labelledby="confirm-title">
-      <h3 id="confirm-title">Confirm round</h3>
-      <p><strong>{byId.get(round.callerId)}</strong> called win.</p>
-      <div className="table-wrap">
-        <table aria-label="Round summary">
-          <thead><tr><th scope="col">Player</th><th scope="col">Hand</th><th scope="col">Change</th><th scope="col">New score</th></tr></thead>
-          <tbody>
-            {Object.keys(round.hands).map((id) => (
-              <tr key={id}>
-                <th scope="row">{byId.get(id)}</th>
-                <td>{round.hands[id]}</td>
-                <td>{round.scoreChanges[id] > 0 ? `+${round.scoreChanges[id]}` : round.scoreChanges[id]}</td>
-                <td>{round.scoresAfter[id]}</td>
-              </tr>
-            ))}
-          </tbody>
+    <div className="scoreboard-region">
+      <div className="scoreboard-heading" aria-hidden="true" ref={headingScroll} onScroll={(event) => {
+        if (historyScroll.current) historyScroll.current.scrollLeft = event.currentTarget.scrollLeft
+      }}>
+        <table className="scoreboard" style={tableStyle}>
+          <thead><tr>{playerTiles}</tr></thead>
         </table>
       </div>
-      {round.eliminatedIds.length > 0 && <p className="elimination-note">Eliminated: {round.eliminatedIds.map((id) => byId.get(id)).join(', ')}</p>}
-      {game.status === 'active' && <p>Next dealer: <strong>{byId.get(game.dealerId ?? '')}</strong></p>}
-      {game.status === 'finished' && game.winnerId && <p>Winner: <strong>{byId.get(game.winnerId)}</strong></p>}
-      <div className="button-row">
-        <button className="button button-primary" onClick={onConfirm}>Confirm round</button>
-        <button className="button" onClick={onCancel}>Edit values</button>
+      <div className="table-wrap scoreboard-history" ref={historyScroll} onScroll={(event) => {
+        if (headingScroll.current) headingScroll.current.scrollLeft = event.currentTarget.scrollLeft
+      }}>
+        <table aria-label="Scoreboard" className="scoreboard" style={tableStyle}>
+          <thead className="sr-only"><tr>{playerTiles}</tr></thead>
+          <tbody>
+            {rounds.map((round) => (
+              <tr key={round.roundNumber} aria-label={`Round ${round.roundNumber}`}>
+                {players.map((player) => {
+                  const hasHand = Object.hasOwn(round.hands, player.id)
+                  const adjustment = hasHand ? roundAdjustment(round, player.id) : undefined
+                  return (
+                    <td key={player.id} className={adjustment ? `score-${adjustment}` : undefined}>
+                      <span className="round-total">
+                        <span className="sr-only">Running total: </span>{round.scoresAfter[player.id]}
+                        {adjustment && <> <span aria-label={adjustment === 'penalty' ? 'Penalty: +25' : 'Reduction: -25'}>({adjustment === 'penalty' ? '+25' : '-25'})</span></>}
+                      </span>
+                      <span className="round-hand">
+                        {hasHand ? <>
+                          <span role="img" aria-label="Hand value">{round.hands[player.id] <= 5 ? '🃏' : '🎴'}</span> {`${round.hands[player.id] > 0 ? '+' : ''}${round.hands[player.id]}`}
+                        </> : <span aria-label="Did not play">-</span>}
+                      </span>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+            {entry}
+          </tbody>
+        </table>
       </div>
     </div>
   )
