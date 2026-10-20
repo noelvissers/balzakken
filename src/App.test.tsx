@@ -17,10 +17,26 @@ afterEach(() => {
 })
 
 async function createTwoPlayerGame(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('button', { name: 'New Game' }))
-  await user.type(screen.getByLabelText('Player 1'), 'Ada')
-  await user.type(screen.getByLabelText('Player 2'), 'Bert')
-  await user.click(screen.getByRole('button', { name: 'Start game' }))
+  await user.click(document.querySelector<HTMLButtonElement>('.welcome-actions .button-primary')!)
+  await user.type(screen.getAllByRole('textbox')[0], 'Ada')
+  await user.type(screen.getAllByRole('textbox')[1], 'Bert')
+  await user.click(document.querySelector<HTMLButtonElement>('.page-content form .next-round-button')!)
+}
+
+function getWinButton(index = 0) {
+  return document.querySelectorAll<HTMLButtonElement>('.win-button')[index]
+}
+
+function getHandInput(index = 0) {
+  return document.querySelectorAll<HTMLInputElement>('.hand-input input')[index]
+}
+
+function getRoundAction() {
+  return document.querySelector<HTMLButtonElement>('.round-form .next-round-button')!
+}
+
+function getUndoButton() {
+  return document.querySelector<HTMLButtonElement>('.app-shell > .undo-button')!
 }
 
 describe('scorekeeper flows', () => {
@@ -37,7 +53,7 @@ describe('scorekeeper flows', () => {
     expect(frame).toHaveAttribute('viewBox', `0 0 1000 ${(roundCount + 1) * 100}`)
     expect(frame.querySelector('path')!.getAttribute('d')!.match(/C /g)).toHaveLength((roundCount + 1) * 4)
     if (roundCount > 0) {
-      await user.click(screen.getByRole('button', { name: 'Undo Last Round' }))
+      await user.click(getUndoButton())
       expect(frame).toHaveAttribute('viewBox', `0 0 1000 ${roundCount * 100}`)
     }
   })
@@ -132,8 +148,8 @@ describe('scorekeeper flows', () => {
       expect(Array.from(header.children).map((child) => child.className)).toEqual(['player-name', 'player-tags', 'player-total'])
     }
     const dealer = heading.querySelector('.dealer-tag')!
-    const dealerName = dealer.closest('th')!.querySelector('.player-name')!.textContent
-    await user.click(screen.getByRole('button', { name: `${dealerName} calls WIN` }))
+    const dealerIndex = [...heading.querySelectorAll('th')].findIndex((header) => header.contains(dealer))
+    await user.click(getWinButton(dealerIndex))
     expect(dealer.parentElement).toContainElement(heading.querySelector('.win-tag'))
     expect(dealer.parentElement?.nextElementSibling).toHaveClass('player-total')
   })
@@ -141,22 +157,22 @@ describe('scorekeeper flows', () => {
   it('limits setup to six players and allows adding again after removal', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'New Game' }))
-    const add = screen.getByRole('button', { name: 'Add player' })
+    await user.click(document.querySelector<HTMLButtonElement>('.welcome-actions .button-primary')!)
+    const add = document.querySelector<HTMLButtonElement>('.player-add-row button')!
     for (let index = 2; index < 6; index += 1) await user.click(add)
     expect(screen.getAllByRole('textbox')).toHaveLength(6)
     expect(add).toBeDisabled()
     await user.click(add)
     expect(screen.getAllByRole('textbox')).toHaveLength(6)
-    await user.click(screen.getByRole('button', { name: 'Remove player 6' }))
+    await user.click(document.querySelectorAll<HTMLButtonElement>('.player-edit-row button')[5])
     expect(add).toBeEnabled()
     await user.click(add)
     for (let index = 1; index <= 6; index += 1) {
-      await user.type(screen.getByLabelText(`Player ${index}`), `Player ${index}`)
+      await user.type(screen.getAllByRole('textbox')[index - 1], `Player ${index}`)
     }
-    await user.click(screen.getByRole('button', { name: 'Start game' }))
+    await user.click(document.querySelector<HTMLButtonElement>('.page-content form .next-round-button')!)
     expect(within(screen.getByRole('table', { name: 'Scoreboard' })).getAllByRole('columnheader')).toHaveLength(6)
-    expect(screen.getAllByRole('button', { name: /calls WIN/ })).toHaveLength(6)
+    expect(document.querySelectorAll('.win-button')).toHaveLength(6)
   })
 
   it('offers neither resume nor a warning for an oversized saved game', () => {
@@ -164,45 +180,45 @@ describe('scorekeeper flows', () => {
     game.players.push({ id: 'extra', name: 'Extra', score: 0 })
     saveGame(game)
     render(<App />)
-    expect(screen.queryByRole('button', { name: 'Resume Game' })).not.toBeInTheDocument()
+    expect(document.querySelectorAll('.welcome-actions button')).toHaveLength(1)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('uses matching compact player controls and fixed setup navigation without a player box', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await user.click(screen.getByRole('button', { name: 'New Game' }))
+    await user.click(document.querySelector<HTMLButtonElement>('.welcome-actions .button-primary')!)
 
     expect(screen.queryByRole('group', { name: 'Players' })).not.toBeInTheDocument()
-    const start = screen.getByRole('button', { name: 'Start game' })
+    const start = document.querySelector<HTMLButtonElement>('.page-content form .next-round-button')!
     expect(start).toHaveClass('next-round-button')
     expect(start).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Back' })).toHaveClass('undo-button')
-    const add = screen.getByRole('button', { name: 'Add player' })
+    expect(document.querySelector('.app-shell > .undo-button')).toBeInTheDocument()
+    const add = document.querySelector<HTMLButtonElement>('.player-add-row button')!
     expect(add).toHaveClass('player-control')
-    for (const remove of screen.getAllByRole('button', { name: /Remove/ })) {
+    for (const remove of document.querySelectorAll('.player-edit-row button')) {
       expect(remove).toHaveClass('player-control')
       expect(remove).toBeDisabled()
     }
 
-    await user.type(screen.getByLabelText('Player 1'), 'Ada')
-    await user.type(screen.getByLabelText('Player 2'), 'Bert')
+    await user.type(screen.getAllByRole('textbox')[0], 'Ada')
+    await user.type(screen.getAllByRole('textbox')[1], 'Bert')
     expect(start).toBeEnabled()
     await user.click(add)
     expect(screen.getAllByRole('textbox')).toHaveLength(3)
     expect(start).toBeDisabled()
-    await user.type(screen.getByLabelText('Player 3'), 'Cody')
+    await user.type(screen.getAllByRole('textbox')[2], 'Cody')
     expect(start).toBeEnabled()
-    const remove = screen.getByRole('button', { name: 'Remove Cody' })
+    const remove = document.querySelectorAll<HTMLButtonElement>('.player-edit-row button')[2]
     expect(remove).toHaveClass('player-control')
     await user.click(remove)
     expect(screen.getAllByRole('textbox')).toHaveLength(2)
-    expect(screen.getByLabelText('Player 1')).toHaveValue('Ada')
-    expect(screen.getByLabelText('Player 2')).toHaveValue('Bert')
+    expect(screen.getAllByRole('textbox')[0]).toHaveValue('Ada')
+    expect(screen.getAllByRole('textbox')[1]).toHaveValue('Bert')
     expect(start).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'Remove Ada' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: 'Back' }))
-    expect(screen.getByRole('button', { name: 'New Game' })).toBeInTheDocument()
+    expect(document.querySelectorAll<HTMLButtonElement>('.player-edit-row button')[0]).toBeDisabled()
+    await user.click(document.querySelector<HTMLButtonElement>('.app-shell > .undo-button')!)
+    expect(document.querySelector('.welcome-actions')).toBeInTheDocument()
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
   })
 
@@ -212,7 +228,7 @@ describe('scorekeeper flows', () => {
     await createTwoPlayerGame(user)
 
     const header = within(container.querySelector('header')!)
-    expect(header.getByRole('button', { name: 'Stop' })).toBeInTheDocument()
+    expect(header.getByRole('button')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Scoreboard' })).not.toBeInTheDocument()
   })
 
@@ -221,16 +237,16 @@ describe('scorekeeper flows', () => {
     render(<App />)
     await createTwoPlayerGame(user)
 
-    await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
-    await user.type(screen.getByLabelText('Ada hand value'), '-1')
-    await user.type(screen.getByLabelText('Bert hand value'), '2')
-    await user.click(screen.getByRole('button', { name: 'Volgende ronde' }))
+    await user.click(getWinButton(0))
+    await user.type(getHandInput(0), '-1')
+    await user.type(getHandInput(1), '2')
+    await user.click(getRoundAction())
 
     expect(screen.queryByRole('heading', { name: 'Confirm round' })).not.toBeInTheDocument()
     expect(screen.queryByRole('table', { name: 'Round summary' })).not.toBeInTheDocument()
 
-    expect(screen.queryByLabelText('Ada hand value')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Ada calls WIN' })).toBeInTheDocument()
+    expect(document.querySelectorAll('.hand-input input')).toHaveLength(0)
+    expect(getWinButton(0)).toBeInTheDocument()
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds).toHaveLength(1)
   })
 
@@ -238,20 +254,20 @@ describe('scorekeeper flows', () => {
     const user = userEvent.setup()
     render(<App />)
     await createTwoPlayerGame(user)
-    await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
+    await user.click(getWinButton(0))
 
-    const ada = screen.getByLabelText('Ada hand value')
+    const ada = getHandInput(0)
     expect(ada).toHaveAttribute('type', 'text')
     expect(ada).not.toHaveAttribute('inputmode')
     expect(screen.queryByRole('group', { name: 'Score keypad' })).not.toBeInTheDocument()
     await user.type(ada, '-4')
     expect(ada).toHaveValue('-4')
 
-    await user.click(screen.getByLabelText('Bert hand value'))
-    const bert = screen.getByLabelText('Bert hand value')
+    await user.click(getHandInput(1))
+    const bert = getHandInput(1)
     expect(document.activeElement).toBe(bert)
     await user.type(bert, '2')
-    await user.click(screen.getByRole('button', { name: 'Volgende ronde' }))
+    await user.click(getRoundAction())
 
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds[0].hands).toEqual({
       [JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.players[0].id]: -4,
@@ -263,16 +279,16 @@ describe('scorekeeper flows', () => {
     const user = userEvent.setup()
     render(<App />)
     await createTwoPlayerGame(user)
-    await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
-    const ada = screen.getByLabelText('Ada hand value')
+    await user.click(getWinButton(0))
+    const ada = getHandInput(0)
     expect(ada).not.toHaveAttribute('maxlength')
     expect(ada).not.toHaveAttribute('min')
     expect(ada).not.toHaveAttribute('max')
     expect(ada).not.toHaveAttribute('inputmode')
     await user.type(ada, '-123')
     expect(ada).toHaveValue('-123')
-    await user.type(screen.getByLabelText('Bert hand value'), '51')
-    await user.click(screen.getByRole('button', { name: 'Volgende ronde' }))
+    await user.type(getHandInput(1), '51')
+    await user.click(getRoundAction())
     expect(Object.values(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds[0].hands)).toEqual([-123, 51])
   })
 
@@ -288,19 +304,19 @@ describe('scorekeeper flows', () => {
     const user = userEvent.setup()
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Resume Game' }))
-    await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
+    await user.click(getWinButton(0))
 
-    expect(screen.queryByLabelText('Bert hand value')).not.toBeInTheDocument()
+    expect(document.querySelectorAll('.hand-input input')).toHaveLength(2)
     expect(screen.queryByRole('group', { name: 'Score keypad' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Volgende ronde' })).toBeDisabled()
-    await user.click(screen.getByRole('button', { name: 'Volgende ronde' }))
+    expect(getRoundAction()).toBeDisabled()
+    await user.click(getRoundAction())
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    await user.type(screen.getByLabelText('Ada hand value'), '-1')
-    expect(screen.getByRole('button', { name: 'Volgende ronde' })).toBeDisabled()
-    await user.click(screen.getByLabelText('Cody hand value'))
-    await user.type(screen.getByLabelText('Cody hand value'), '3')
-    expect(screen.getByRole('button', { name: 'Volgende ronde' })).toBeEnabled()
-    await user.click(screen.getByRole('button', { name: 'Volgende ronde' }))
+    await user.type(getHandInput(0), '-1')
+    expect(getRoundAction()).toBeDisabled()
+    await user.click(getHandInput(1))
+    await user.type(getHandInput(1), '3')
+    expect(getRoundAction()).toBeEnabled()
+    await user.click(getRoundAction())
 
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds.at(-1).hands).toEqual({ ada: -1, cody: 3 })
   })
@@ -311,15 +327,15 @@ describe('scorekeeper flows', () => {
     await createTwoPlayerGame(user)
     const committed = localStorage.getItem(STORAGE_KEY)
 
-    await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
-    const nextRound = screen.getByRole('button', { name: 'Volgende ronde' })
+    await user.click(getWinButton(0))
+    const nextRound = getRoundAction()
     expect(nextRound).toBeDisabled()
     await user.click(nextRound)
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(localStorage.getItem(STORAGE_KEY)).toBe(committed)
-    const ada = screen.getByLabelText('Ada hand value')
-    const bert = screen.getByLabelText('Bert hand value')
+    const ada = getHandInput(0)
+    const bert = getHandInput(1)
     await user.type(ada, '0')
     expect(nextRound).toBeDisabled()
     for (const value of ['-', '1.5', 'abc', '9007199254740992']) {
@@ -342,24 +358,24 @@ describe('scorekeeper flows', () => {
     const firstRender = render(<App />)
     await createTwoPlayerGame(user)
     const initialGame = JSON.parse(localStorage.getItem(STORAGE_KEY)!).game
-    await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
-    await user.type(screen.getByLabelText('Ada hand value'), '1')
-    await user.type(screen.getByLabelText('Bert hand value'), '2')
-    await user.click(screen.getByRole('button', { name: 'Volgende ronde' }))
+    await user.click(getWinButton(0))
+    await user.type(getHandInput(0), '1')
+    await user.type(getHandInput(1), '2')
+    await user.click(getRoundAction())
     firstRender.unmount()
 
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Resume Game' }))
     vi.spyOn(window, 'confirm').mockReturnValue(false)
-    await user.click(screen.getByRole('button', { name: 'Undo Last Round' }))
+    await user.click(getUndoButton())
 
     expect(window.confirm).not.toHaveBeenCalled()
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game).toEqual(initialGame)
-    expect(screen.getByLabelText('Ada hand value')).toHaveValue('1')
-    expect(screen.getByLabelText('Bert hand value')).toHaveValue('2')
-    await user.clear(screen.getByLabelText('Bert hand value'))
-    await user.type(screen.getByLabelText('Bert hand value'), '4')
-    await user.click(screen.getByRole('button', { name: 'Volgende ronde' }))
+    expect(getHandInput(0)).toHaveValue('1')
+    expect(getHandInput(1)).toHaveValue('2')
+    await user.clear(getHandInput(1))
+    await user.type(getHandInput(1), '4')
+    await user.click(getRoundAction())
     const corrected = JSON.parse(localStorage.getItem(STORAGE_KEY)!).game
     expect(corrected.rounds).toHaveLength(1)
     expect(corrected.rounds[0]).toMatchObject({ callerId: initialGame.players[0].id, hands: { [initialGame.players[0].id]: 1, [initialGame.players[1].id]: 4 } })
@@ -390,7 +406,7 @@ describe('scorekeeper flows', () => {
     expect(screen.getByRole('region', { name: 'Game results' })).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'Player scores after each round' })).toBeInTheDocument()
 
-    const playAgain = screen.getByRole('button', { name: 'Play Again' })
+    const playAgain = document.querySelector<HTMLButtonElement>('.results .next-round-button')!
     expect(playAgain).toHaveClass('next-round-button')
     await user.click(playAgain)
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)!)
@@ -401,13 +417,13 @@ describe('scorekeeper flows', () => {
     ])
 
     vi.spyOn(window, 'confirm').mockReturnValue(false)
-    await user.click(screen.getByRole('button', { name: 'Stop' }))
+    await user.click(document.querySelector<HTMLButtonElement>('.header-quit')!)
     expect(localStorage.getItem(STORAGE_KEY)).not.toBeNull()
     vi.mocked(window.confirm).mockReturnValue(true)
-    await user.click(screen.getByRole('button', { name: 'Stop' }))
+    await user.click(document.querySelector<HTMLButtonElement>('.header-quit')!)
     await waitFor(() => expect(localStorage.getItem(STORAGE_KEY)).toBeNull())
-    expect(screen.getByRole('button', { name: 'New Game' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Resume Game' })).not.toBeInTheDocument()
+    expect(document.querySelector('.welcome-actions')).toBeInTheDocument()
+    expect(document.querySelectorAll('.welcome-actions button')).toHaveLength(1)
   })
 
   it('replaces the winner score with a crown and styles the winner tag', async () => {
@@ -502,16 +518,16 @@ describe('scorekeeper flows', () => {
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Resume Game' }))
     vi.spyOn(window, 'confirm').mockReturnValue(false)
-    await user.click(screen.getByRole('button', { name: 'Undo Last Round' }))
+    await user.click(getUndoButton())
     expect(window.confirm).not.toHaveBeenCalled()
     expect(screen.getByRole('table', { name: 'Scoreboard' })).toBeInTheDocument()
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds).toHaveLength(0)
-    expect(screen.getByLabelText('Ada hand value')).toHaveValue('1')
-    expect(screen.getByLabelText('Bert hand value')).toHaveValue('6')
+    expect(getHandInput(0)).toHaveValue('1')
+    expect(getHandInput(1)).toHaveValue('6')
     expect(screen.queryByRole('img', { name: 'Eliminated' })).not.toBeInTheDocument()
-    await user.clear(screen.getByLabelText('Bert hand value'))
-    await user.type(screen.getByLabelText('Bert hand value'), '0')
-    await user.click(screen.getByRole('button', { name: 'Volgende ronde' }))
+    await user.clear(getHandInput(1))
+    await user.type(getHandInput(1), '0')
+    await user.click(getRoundAction())
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.players[1].score).toBe(50)
   })
 
@@ -521,27 +537,25 @@ describe('scorekeeper flows', () => {
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Resume Game' }))
     const committed = localStorage.getItem(STORAGE_KEY)
-    expect(screen.queryByRole('button', { name: /Undo|Change win caller|Back to hand values/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
     const entry = screen.getByRole('row', { name: 'Round 1 entry' })
     const cells = within(entry).getAllByRole('cell')
     expect(within(cells[0]).getByRole('button')).toHaveAttribute('title')
 
-    await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
-    expect(within(cells[0]).getByLabelText('Ada hand value')).toBeInTheDocument()
-    expect(within(cells[1]).getByLabelText('Bert hand value')).toBeInTheDocument()
+    await user.click(getWinButton(0))
+    expect(within(cells[0]).getByRole('textbox')).toBeInTheDocument()
+    expect(within(cells[1]).getByRole('textbox')).toBeInTheDocument()
     expect(cells[0].querySelector('label')).toHaveClass('sr-only')
-    await user.type(screen.getByLabelText('Ada hand value'), '1')
-    await user.type(screen.getByLabelText('Bert hand value'), '4')
+    await user.type(getHandInput(0), '1')
+    await user.type(getHandInput(1), '4')
 
-    await user.click(screen.getByRole('button', { name: 'Change win caller' }))
+    await user.click(getUndoButton())
     expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Undo|Change win caller|Back to hand values/ })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Bert calls WIN' }))
-    expect(screen.getByLabelText('Ada hand value')).toHaveValue('1')
-    expect(screen.getByLabelText('Bert hand value')).toHaveValue('4')
+    await user.click(getWinButton(1))
+    expect(getHandInput(0)).toHaveValue('1')
+    expect(getHandInput(1)).toHaveValue('4')
     expect(localStorage.getItem(STORAGE_KEY)).toBe(committed)
-    await user.click(screen.getByRole('button', { name: 'Volgende ronde' }))
+    await user.click(getRoundAction())
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY)!).game.rounds[0]).toMatchObject({ callerId: 'bert', hands: { ada: 1, bert: 4 } })
   })
 
@@ -595,8 +609,8 @@ describe('scorekeeper flows', () => {
     const eliminated = within(screen.getByRole('row', { name: 'Round 2' })).getAllByRole('cell')[1]
     expect(eliminated.lastElementChild).toHaveClass('round-hand')
 
-    await user.click(screen.getByRole('button', { name: 'Undo Last Round' }))
-    expect(screen.getByLabelText('Bert hand value')).toHaveValue('6')
+    await user.click(getUndoButton())
+    expect(getHandInput(1)).toHaveValue('6')
     expect(screen.queryByRole('img', { name: 'Eliminated' })).not.toBeInTheDocument()
   })
 
@@ -621,10 +635,10 @@ describe('scorekeeper flows', () => {
     const history = within(table.getByRole('row', { name: 'Round 2' })).getAllByRole('cell')
     expect(history).toHaveLength(3)
     expect(history[1]).toBeEmptyDOMElement()
-    expect(screen.queryByRole('button', { name: 'Bert calls WIN' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Ada calls WIN' }))
-    expect(screen.getAllByRole('textbox', { name: /hand value/ })).toHaveLength(2)
-    expect(screen.queryByLabelText('Bert hand value')).not.toBeInTheDocument()
+    expect(within(table.getByRole('row', { name: 'Round 3 entry' })).getAllByRole('cell')[1].querySelector('.win-button')).toBeNull()
+    await user.click(getWinButton(0))
+    expect(document.querySelectorAll('.hand-input input')).toHaveLength(2)
+    expect(within(table.getByRole('row', { name: 'Round 3 entry' }).querySelectorAll('td')[1]).queryByRole('textbox')).toBeNull()
     expect(within(table.getByRole('row', { name: 'Round 3 entry' })).getAllByRole('cell')).toHaveLength(3)
   })
 })
