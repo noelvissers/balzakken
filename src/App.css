@@ -302,7 +302,7 @@ tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
 .round-form { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 14px; }
 .hand-input label { font-size: 13px; font-weight: 650; }
 .hand-input { display: grid; min-width: 0; gap: 6px; }
-.hand-input input { justify-self: center; width: 100%; min-width: 0; max-width: 100%; padding-inline: 4px; text-align: center; }
+.hand-input input { justify-self: center; width: 100%; min-width: 0; max-width: 100%; padding-inline: 4px; font-size: 16px; text-align: center; }
 
 .chart-section { margin: 30px 0; padding-top: 24px; }
 .chart-wrap { width: 100%; }
