@@ -167,8 +167,8 @@ function App() {
           <p>Actie 2: Ruilen<br />Ruil een kaart uit je hand met de bovenste kaart van de aflegstapel.<br /><br /></p>
           <p>Actie 3: BALZAK!<br />Heb je 5 punten of minder in je hand? Dan mag je keihard BALZAK! roepen. De ronde stopt dan direct.<br /><br /></p>
           <p>BELANGRIJK!</p>
-          <p>• Dezelfde kaarten en straten mag je tegelijk weggooien.</p>
           <p>• Kaarten met dezelfde waarde, en 3 of meer opvolgende kaarten (van dezelfde soort) mag je tegelijk weggooien. Je hoeft dan maar één kaart terug te pakken van de trek- of aflegstapel. Zo speel je de rest van de ronde met minder kaarten.</p>
+          <p>• Pak je een kaart van de trekstapel die op je aflegstapel kan (dezelfde waarde of aansluitend op de straat), dan mag je deze direct afleggen. Let op: dit mag alleen als de ander zijn beurt nog niet heeft gestart. Je pakt na deze actie wel een nieuwe kaart van de trekstapel.</p>
           <p>• Je mag alleen BALZAK! roepen als je aan de beurt bent.</p>
           <p>• BALZAK! roepen geldt als een beurt. Je mag dus niet eerst actie 1, 2 of 3 spelen en dan BALZAK! roepen.</p>
           <h4>3. Kaarten</h4>
