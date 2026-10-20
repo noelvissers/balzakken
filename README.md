@@ -4,7 +4,7 @@ A local-first scorekeeper for physical multiplayer card games. Game logic is pur
 
 ## Run Locally
 
-Requires Node.js 20.19+ and npm.
+Requires Node.js 24 and npm.
 
 ```sh
 npm ci
