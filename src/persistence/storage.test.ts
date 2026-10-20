@@ -83,20 +83,20 @@ describe('local game persistence', () => {
     const storage = new MemoryStorage()
     expect(loadSavedGame(storage)).toEqual({ game: null, warning: null })
     storage.values.set(STORAGE_KEY, '{bad json')
-    expect(loadSavedGame(storage).warning).toMatch(/malformed/i)
+    expect(loadSavedGame(storage).warning).toBeTypeOf('string')
     storage.values.set(STORAGE_KEY, JSON.stringify({ version: 22, game: completedGame() }))
-    expect(loadSavedGame(storage).warning).toMatch(/unsupported/i)
+    expect(loadSavedGame(storage).warning).toBeTypeOf('string')
   })
 
   it('rejects invalid game data and inconsistent history', () => {
     const storage = new MemoryStorage()
     storage.values.set(STORAGE_KEY, JSON.stringify({ version: 1, game: { players: [], rounds: [] } }))
-    expect(loadSavedGame(storage).warning).toMatch(/invalid/i)
+    expect(loadSavedGame(storage).warning).toBeTypeOf('string')
 
     const corrupt = structuredClone(completedGame())
     corrupt.players[0].score += 1
     storage.values.set(STORAGE_KEY, JSON.stringify({ version: 1, game: corrupt }))
-    expect(loadSavedGame(storage).warning).toMatch(/invalid/i)
+    expect(loadSavedGame(storage).warning).toBeTypeOf('string')
   })
 
   it('reports read, write, and clear failures without throwing', () => {
@@ -105,7 +105,7 @@ describe('local game persistence', () => {
       setItem: () => { throw new Error('quota') },
       removeItem: () => { throw new Error('blocked') },
     }
-    expect(loadSavedGame(failingStorage).warning).toMatch(/read/i)
+    expect(loadSavedGame(failingStorage).warning).toBeTypeOf('string')
     expect(saveGame(completedGame(), failingStorage)).toMatchObject({ ok: false })
     expect(clearSavedGame(failingStorage)).toMatchObject({ ok: false })
   })

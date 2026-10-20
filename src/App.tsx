@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { ArrowLeft, ArrowRight, Minus, Plus } from 'lucide-react'
+import coconutIcon from './assets/coconut-icon.svg'
 import {
   activePlayers,
   createGame,
@@ -118,7 +119,7 @@ function App() {
 
   function quitGame() {
     if (!game) return
-    if (game.status === 'active' && !window.confirm('Quit this game and remove its saved progress?')) return
+    if (game.status === 'active' && !window.confirm('Weet je zeker dat je het spel wil stoppen?')) return
     const cleared = clearSavedGame()
     setStorageWarning(cleared.warning)
     setGame(null)
@@ -136,20 +137,56 @@ function App() {
   if (screen === 'welcome') {
     return (
       <main className="app-shell">
-        <Header />
+        <Header title="BALZAKKEN!" />
         {storageWarning && <p role="alert" className="notice">{storageWarning}</p>}
         <section className="welcome-panel" aria-labelledby="welcome-title">
-          <p className="eyebrow">Digitaal scoreboard voor</p>
+          <p className="eyebrow">Digitaal scorebord voor</p>
           <h1 id="welcome-title">BALZAKKEN!</h1>
-          <p className="intro">Bottom text.</p>
           <div className="welcome-actions">
             <button className="button button-primary" onClick={() => {
               setDraftPlayers(newDraft())
               setFormError('')
               setScreen('setup')
-            }}>New Game</button>
+            }}>Nieuw Spel</button>
             {game && <button className="button" onClick={() => setScreen('game')}>Resume Game</button>}
           </div>
+          <h3><br />Uitleg</h3>
+          <p>Het doel van het spel is om een zo laag mogelijke score te halen. Hoe? Door hoge kaarten te lozen. Heb je 5 of minder punten in je hand? Roep dan keihard BALZAK! en zadel je medespelers op met veel punten.<br />Aan het eind van elke ronde worden alle punten opgeschreven. Er begint dan een nieuwe ronde. Heb je 100 punten of meer, is het spel voor jou afgelopen. De rest van de spelers speelt door tot er nog maar één speler over is.<br /><br /></p>
+          <p>1. Start het spel door op de knop ‘Nieuw Spel’ te klikken. </p>
+          <p>2. Vul de namen van de spelers in (maximaal 6), en klik op de knop ‘Start Spel’.</p>
+          <p>3. Speel het spel zoals in de regels beschreven. Degene die moet delen krijgt ‘Dealer’ onder zijn naam.</p>
+          <p>4. Als de ronde voorbij is, klik je op de joker bij degene die ‘BALZAK!’ heeft geroepen.</p>
+          <p>5. Vul de punten in die iedereen in zijn hand heeft. Valse balzak en andere speciale scores worden automatisch berekend, dit hoef je dus niet zelf te bedenken.</p>
+          <p>6. Klik op de knop ‘Volgende ronde’ als de score correct is ingevuld.</p>
+          <h3>Regels</h3>
+          <h4>1. Begin</h4>
+          <p>Schud alle kaarten en geef iedere speler 5 stuks. Houd de kaarten in je hand en zorg dat niemand ze ziet. De overige kaarten vormen de trekstapel. Draai de bovenste kaart om en leg deze ernaast. Dit is de aflegstapel.</p>
+          <h4>2. Acties</h4>
+          <p>Het scorebord geeft automatisch een willekeurig persoon aan die de dealer is. Daarna loopt het spel met de klok mee. Per beurt voer je 1 van de 3 onderstaande acties uit:<br /><br /></p>
+          <p>Actie 1: Weggooien, pakken<br />Gooi een kaart uit je hand op de aflegstapel en pak een gesloten kaart van de trekstapel terug. Let op: éérst weggooien, dan pakken!<br /><br /></p>
+          <p>Actie 2: Ruilen<br />Ruil een kaart uit je hand met de bovenste kaart van de aflegstapel.<br /><br /></p>
+          <p>Actie 3: BALZAK!<br />Heb je 5 punten of minder in je hand? Dan mag je keihard BALZAK! roepen. De ronde stopt dan direct.<br /><br /></p>
+          <p>BELANGRIJK!</p>
+          <p>• Dezelfde kaarten en straten mag je tegelijk weggooien.</p>
+          <p>• Kaarten met dezelfde waarde, en 3 of meer opvolgende kaarten (van dezelfde soort) mag je tegelijk weggooien. Je hoeft dan maar één kaart terug te pakken van de trek- of aflegstapel. Zo speel je de rest van de ronde met minder kaarten.</p>
+          <p>• Je mag alleen BALZAK! roepen als je aan de beurt bent.</p>
+          <p>• BALZAK! roepen geldt als een beurt. Je mag dus niet eerst actie 1, 2 of 3 spelen en dan BALZAK! roepen.</p>
+          <h4>3. Kaarten</h4>
+          <p>De kaarten hebben een waarde van -2 tot en met 10. De joker is -2, een boer -1, aas 1, vrouw en koning 10. De overige kaarten hebben de waarde op de kaart.</p>
+          <h4>4. BALZAK!</h4>
+          <p>Heb je 5 punten of minder in je hand? Dan mag je als beurt BALZAK! roepen. De ronde stopt dan direct, alle punten worden geteld en er wordt bepaald of de BALZAK! goed of vals is. Hierna begint de volgende ronde. Degene met de hoogste hand wordt de nieuwe dealer.<br /><br /></p>
+          <p>GOEIE BALZAK!</p>
+          <p>Heeft de speler die BALZAK! heeft geroepen 5 punten of minder en heeft niemand anders hetzelfde of minder? Dan is het een goeie BALZAK! Alle spelers noteren de punten die ze op dit moment in hun hand hebben.<br /><br /></p>
+          <p>BELANGRIJK!</p>
+          <p>• Een hand kan minder dan 0 punten hebben, maar je totaalscore op het scoreformulier kan niet de min in.<br /><br /></p>
+          <p>VALSE BALZAK!</p>
+          <p>Heeft een andere speler hetzelfde aantal of minder punten? Dan heb je een Valse BALZAK! Bij een Valse BALZAK! krijg je 25 punten. De overige spelers schrijven de punten op die ze op dat moment in hun hand hebben.<br /><br /></p>
+          <p>BELANGRIJK!</p>
+          <p>• Roept iemand BALZAK! maar heeft ’ie meer dan 5 punten? Dan zit ’ie niet op te letten. Dit kost je 25 punten. De overige spelers schrijven in dit geval allemaal 0 punten op.</p>
+          <h4>5. Lekkere (tussen)standjes</h4>
+          <p>Heeft een van de spelers na een ronde precies 50, 75 of 100 punten? Dan mogen er 25 punten van de score afgetrokken worden.<br /><br /></p>
+          <p>BELANGRIJK!</p>
+          <p>• Kom je op 50, 75 of 100 na een valse balzak, worden er geen 25 punten afgetrokken. Sta je op 50 of 75 punten en heb je na de ronde een score van 0 in je hand, mogen er wel 25 punten afgetrokken worden.</p>
         </section>
       </main>
     )
@@ -160,12 +197,12 @@ function App() {
       <main className="app-shell game-shell">
         <Header />
         <section className="page-content" aria-labelledby="setup-title">
-          <h1 id="setup-title">New game</h1>
+          <h1 id="setup-title">Nieuw spel</h1>
           <form onSubmit={startNewGame}>
             <div className="player-editor">
               {draftPlayers.map((player, index) => (
                 <div className="player-edit-row" key={player.id}>
-                  <label htmlFor={`player-${player.id}`}>Player {index + 1}</label>
+                  <label htmlFor={`player-${player.id}`}>Speler {index + 1}</label>
                   <input
                     id={`player-${player.id}`}
                     value={player.name}
@@ -178,26 +215,24 @@ function App() {
                   <button
                     className="button player-control"
                     type="button"
-                    aria-label={`Remove ${player.name || `player ${index + 1}`}`}
-                    title={`Remove ${player.name || `player ${index + 1}`}`}
                     disabled={draftPlayers.length <= 2}
                     onClick={() => setDraftPlayers((players) => players.filter((entry) => entry.id !== player.id))}
                   ><Minus size={20} aria-hidden="true" /></button>
                 </div>
               ))}
               <div className="player-add-row">
-                <button className="button player-control" type="button" aria-label="Add player" title="Add player" disabled={draftPlayers.length >= MAX_PLAYERS} onClick={() => setDraftPlayers((players) => players.length < MAX_PLAYERS ? [...players, { id: makeId(), name: '' }] : players)}>
+                <button className="button player-control" type="button" disabled={draftPlayers.length >= MAX_PLAYERS} onClick={() => setDraftPlayers((players) => players.length < MAX_PLAYERS ? [...players, { id: makeId(), name: '' }] : players)}>
                   <Plus size={20} aria-hidden="true" />
                 </button>
               </div>
             </div>
             {formError && <p className="form-error" role="alert">{formError}</p>}
             <button className="button button-primary next-round-button" type="submit" disabled={draftPlayers.length < 2 || draftPlayers.some((player) => !player.name.trim())}>
-              Start game<ArrowRight size={20} aria-hidden="true" />
+              Start Spel<ArrowRight size={20} aria-hidden="true" />
             </button>
           </form>
         </section>
-        <button className="button undo-button" type="button" aria-label="Back" title="Back" onClick={() => setScreen('welcome')}>
+        <button className="button undo-button" type="button" onClick={() => setScreen('welcome')}>
           <ArrowLeft size={22} aria-hidden="true" />
         </button>
       </main>
@@ -220,21 +255,21 @@ function App() {
   const handPlayers = players.filter((player) => player.score < 100)
   const canSubmitRound = Boolean(callerId) && handPlayers.every((player) => isValidHandValue(handValues[player.id] ?? ''))
   const currentRound = game.roundNumber
-  const undoLabel = callerId ? 'Change win caller' : 'Undo Last Round'
+  const undoLabel = 'Ongedaan maken'
   const canUndo = Boolean(callerId || game.rounds.length)
 
   return (
     <main className="app-shell game-shell">
-      <Header title={game.status === 'active' ? `Ronde ${currentRound}` : undefined} onQuit={quitGame} />
+      <Header title={game.status === 'active' ? `Ronde ${currentRound}` : 'Uitslag'} onQuit={quitGame} />
       {storageWarning && <p role="alert" className="notice">{storageWarning}</p>}
       {game.status === 'finished' ? (
         <section className="page-content results" aria-label="Game results">
           <Scoreboard game={game} />
           <section className="chart-section" aria-labelledby="chart-title">
-            <h2 id="chart-title">Score progression</h2>
+            <h2 id="chart-title">Score progressie</h2>
             <ScoreChart game={game} />
           </section>
-          <button className="button button-primary next-round-button" onClick={playAgain}>Play Again</button>
+          <button className="button button-primary next-round-button" onClick={playAgain}>Nog een keer!</button>
         </section>
       ) : (
         <section className="page-content" aria-label="Game">
@@ -255,10 +290,10 @@ function App() {
                         />
                       </div>
                     ) : (
-                      <button className="button button-primary win-button" type="button" aria-label={`${player.name} calls WIN`} title={`${player.name} calls WIN`} onClick={() => {
+                      <button className="button button-primary win-button" type="button" aria-label={`${player.name} roept BALZAK!`} title={`${player.name} roept BALZAK!`} onClick={() => {
                         setCallerId(player.id)
                         setFormError('')
-                      }}>🃏</button>
+                      }}><img src={coconutIcon} alt="" aria-hidden="true" /></button>
                     )}
                     <FittedText className="player-name">{player.name}</FittedText>
                   </td>
@@ -282,7 +317,7 @@ function App() {
 function Header({ title, onQuit }: { title?: string; onQuit?: () => void }) {
   return (
     <header className="app-header">
-      <span className="header-brand"><span className="mark" aria-hidden="true">♠</span><span>BALZAKKEN!</span></span>
+      <span className="header-brand"><img className="mark" src={coconutIcon} alt="BALZAKKEN!" /></span>
       {title && <span className="header-title">{title}</span>}
       {onQuit && <button className="button button-subtle header-quit" onClick={onQuit}>Stop</button>}
     </header>
@@ -333,6 +368,26 @@ function FittedText({ children, className }: { children: ReactNode; className: s
   return <span className={className} ref={containerRef}><span className={`${className}-text`} ref={textRef}>{children}</span></span>
 }
 
+function HistoryFrame({ rows }: { rows: number }) {
+  const segments = Math.max(1, rows) * 2
+  const height = Math.max(1, rows) * 100
+  const step = (height - 12) / segments
+  const left = Array.from({ length: segments }, (_, index) => {
+    const y = index * step
+    return `C -3 ${y + step / 3} 3 ${y + 2 * step / 3} 0 ${y + step}`
+  }).join(' ')
+  const right = Array.from({ length: segments }, (_, index) => {
+    const y = height - 12 - index * step
+    return `C 997 ${y - step / 3} 1003 ${y - 2 * step / 3} 1000 ${Math.max(0, y - step)}`
+  }).join(' ')
+
+  return (
+    <svg className="scoreboard-frame scoreboard-history-frame" viewBox={`0 0 1000 ${height}`} preserveAspectRatio="none" aria-hidden="true">
+      <path className="scoreboard-frame-main" d={`M 0 0 ${left} Q 0 ${height} 12 ${height} c 31 -3 54 3 98 0 s 66 -2 100 1 s 66 -4 100 -1 s 66 2 100 -1 s 66 4 100 1 s 66 -2 100 1 s 66 -4 100 -1 s 66 2 100 -1 s 66 4 100 1 s 43 -2 78 0 Q 1000 ${height} 1000 ${height - 12} ${right}`} />
+    </svg>
+  )
+}
+
 function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: string; entry?: ReactNode }) {
   const { players, dealerId, rounds } = game
   const playerTiles = (visible: boolean) => players.map((player) => {
@@ -343,7 +398,7 @@ function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: str
         <span className="player-tags">
           {player.id === dealerId && <span className="dealer-tag">Dealer</span>}
           {player.id === callerId && <span className="win-tag">BALZAK!</span>}
-          {isWinner && <span className="status-winner">Winner</span>}
+          {isWinner && <span className="status-winner">Winnaar</span>}
         </span>
         {isWinner ? (
           <span className="player-total" role="img" aria-label="Winner">👑</span>
@@ -362,7 +417,7 @@ function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: str
           <thead><tr>{playerTiles(true)}</tr></thead>
         </table>
         <svg className="scoreboard-frame" viewBox="0 0 1000 200" preserveAspectRatio="none" aria-hidden="true">
-          <path className="scoreboard-frame-main" d="M 0 200 C -3 183 3 166 0 149 S -2 119 1 101 S -3 67 0 49 S 2 27 0 12 Q 0 0 12 0 C 44 -3 77 3 110 0 S 175 -2 210 1 S 277 -3 310 0 S 375 2 410 -1 S 477 3 510 0 S 575 -2 610 1 S 677 -3 710 0 S 775 2 810 -1 S 877 3 910 0 S 965 -2 988 0 Q 1000 0 1000 12 C 997 29 1003 47 1000 65 S 998 98 1001 116 S 997 149 1000 167 S 1002 188 1000 200" />
+          <path className="scoreboard-frame-main" d="M 0 200 C -3 183 3 166 0 149 S -2 119 1 101 S -3 67 0 49 S 2 27 0 6 Q 0 0 6 0 C 44 -3 77 3 110 0 S 175 -2 210 1 S 277 -3 310 0 S 375 2 410 -1 S 477 3 510 0 S 575 -2 610 1 S 677 -3 710 0 S 775 2 810 -1 S 877 3 910 0 S 965 -2 994 0 Q 1000 0 1000 6 C 997 29 1003 47 1000 65 S 998 98 1001 116 S 997 149 1000 167 S 1002 188 1000 200" />
           <path className="scoreboard-frame-main" d="M 0 200 C 35 198 65 202 100 200 S 165 198 200 200 S 265 202 300 200 S 365 198 400 200 S 465 202 500 200 S 565 198 600 200 S 665 202 700 200 S 765 198 800 200 S 865 202 900 200 S 965 198 1000 200" />
         </svg>
       </div>
@@ -402,9 +457,7 @@ function Scoreboard({ game, callerId, entry }: { game: GameState; callerId?: str
             {entry}
           </tbody>
         </table>
-        <svg className="scoreboard-frame scoreboard-history-frame" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
-          <path className="scoreboard-frame-main" d="M 0 0 C -3 35 3 67 0 100 S -2 166 1 200 S -3 266 0 300 S 2 366 -1 400 S 3 466 0 500 S -2 566 1 600 S -3 666 0 700 S 2 766 -1 800 S 3 866 0 900 S -2 949 0 975 Q 0 1000 24 1000 C 55 997 78 1003 110 1000 S 176 998 210 1001 S 276 997 310 1000 S 376 1002 410 999 S 476 1003 510 1000 S 576 998 610 1001 S 676 997 710 1000 S 776 1002 810 999 S 876 1003 910 1000 S 953 998 976 1000 Q 1000 1000 1000 975 C 997 949 1003 924 1000 900 S 998 834 1001 800 S 997 734 1000 700 S 1002 634 999 600 S 1003 534 1000 500 S 998 434 1001 400 S 997 334 1000 300 S 1002 234 999 200 S 1003 134 1000 100 S 998 35 1000 0" />
-        </svg>
+        <HistoryFrame rows={rounds.length + (entry ? 1 : 0)} />
       </div>
     </div>
   )
