@@ -14,8 +14,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon-card.svg'],
       manifest: {
-        name: 'Card Game Scorekeeper',
-        short_name: 'Scorekeeper',
+        name: 'BALZAKKEN!',
+        short_name: 'BALZAKKEN!',
         description: 'Offline scorekeeping for multiplayer card games.',
         start_url: './',
         scope: './',
